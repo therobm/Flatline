@@ -23,5 +23,33 @@ namespace Flatline.Routes
 
             BugRoutes.CreateBugForUser(context, keyOwner, createRequest);
         }
+
+        public static void HandleListExternalBugs(FlatlineHttpContext context)
+        {
+            User keyOwner = ApiKeyRoutes.GetUserFromApiKey(context);
+            if (keyOwner == null)
+            {
+                HttpResponseWriter.WriteJson(context, 401, new { error = "Invalid or missing API key." });
+                return;
+            }
+            BugRoutes.ListBugs(context);
+        }
+
+        public static void HandleGetExternalBug(FlatlineHttpContext context, long id)
+        {
+            User keyOwner = ApiKeyRoutes.GetUserFromApiKey(context);
+            if (keyOwner == null)
+            {
+                HttpResponseWriter.WriteJson(context, 401, new { error = "Invalid or missing API key." });
+                return;
+            }
+            Bug bug = BugRoutes.LoadBugById(id);
+            if (bug == null)
+            {
+                HttpResponseWriter.WriteJson(context, 404, new { error = "Bug not found." });
+                return;
+            }
+            HttpResponseWriter.WriteJson(context, 200, bug);
+        }
     }
 }
