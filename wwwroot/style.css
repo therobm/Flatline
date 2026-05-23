@@ -521,6 +521,16 @@ table.user-table {
     font-size: var(--font-size-base);
 }
 
+/*
+ * Tables that are direct children of bug/settings sections also carry
+ * left+right margins, so width:100% would overflow the parent by 2 * --space-3.
+ * Constrain those to the inset width via calc().
+ */
+.bug-section > table,
+.settings-section > table {
+    width: calc(100% - var(--space-3) - var(--space-3));
+}
+
 table.bug-table th,
 table.user-table th,
 table.bug-table td,
