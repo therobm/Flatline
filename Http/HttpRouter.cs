@@ -31,6 +31,29 @@ namespace Flatline.Http
                 return;
             }
 
+            if (method == "POST" && path == "/api/external/bugs")
+            {
+                ExternalBugRoutes.HandleCreateExternalBug(context);
+                return;
+            }
+
+            if (method == "GET" && path == "/api/api-keys")
+            {
+                ApiKeyRoutes.HandleListApiKeys(context);
+                return;
+            }
+            if (method == "POST" && path == "/api/api-keys")
+            {
+                ApiKeyRoutes.HandleCreateApiKey(context);
+                return;
+            }
+            long apiKeyId = 0;
+            if (method == "DELETE" && TryMatchApiKeyId(path, out apiKeyId))
+            {
+                ApiKeyRoutes.HandleDeleteApiKey(context, apiKeyId);
+                return;
+            }
+
             if (method == "GET" && path == "/api/bugs")
             {
                 BugRoutes.HandleListBugs(context);
@@ -188,6 +211,22 @@ namespace Flatline.Http
                 idPart = rest;
             }
             return long.TryParse(idPart, out bugId);
+        }
+
+        private static bool TryMatchApiKeyId(string path, out long apiKeyId)
+        {
+            apiKeyId = 0;
+            const string prefix = "/api/api-keys/";
+            if (!path.StartsWith(prefix))
+            {
+                return false;
+            }
+            string idPart = path.Substring(prefix.Length);
+            if (idPart.Contains('/'))
+            {
+                return false;
+            }
+            return long.TryParse(idPart, out apiKeyId);
         }
 
         private static bool TryMatchUserId(string path, out long userId)

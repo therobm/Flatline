@@ -449,6 +449,52 @@
                         </div>
                     </div>
                 </div>
+
+                <div class="settings-section" id="apiKeyManagementSection">
+                    <div class="settings-section-header">
+                        <h3>API keys</h3>
+                        <button type="button" id="newApiKeyButton" class="primary-button">New API key</button>
+                    </div>
+                    <p class="section-description">API keys let external tools (e.g. an LLM scanning code) create bugs as a specific user via <code>POST /api/external/bugs</code> with header <code>X-API-Key</code>.</p>
+                    <table class="user-table">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>User</th>
+                                <th>Prefix</th>
+                                <th>Created</th>
+                                <th>Last used</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody id="apiKeyTableBody"></tbody>
+                    </table>
+                    <div id="apiKeyEmpty" class="empty-message hidden">No API keys defined.</div>
+
+                    <div id="newApiKeyPanel" class="hidden">
+                        <h4>Create API key</h4>
+                        <form id="newApiKeyForm">
+                            <label for="newApiKeyName">Name (description)</label>
+                            <input type="text" id="newApiKeyName" required>
+                            <label for="newApiKeyUser">Owner (user)</label>
+                            <select id="newApiKeyUser" required></select>
+                            <div class="form-buttons">
+                                <button type="submit">Create key</button>
+                                <button type="button" id="cancelNewApiKeyButton" class="edit-button">Cancel</button>
+                            </div>
+                            <div id="newApiKeyError" class="error-message"></div>
+                        </form>
+                    </div>
+
+                    <div id="apiKeyRevealPanel" class="hidden">
+                        <h4>API key created</h4>
+                        <p class="section-description"><strong>Copy this key now.</strong> It will not be shown again.</p>
+                        <pre id="apiKeyRevealValue" class="api-key-reveal"></pre>
+                        <div class="form-buttons">
+                            <button type="button" id="apiKeyRevealDoneButton" class="primary-button">Done</button>
+                        </div>
+                    </div>
+                </div>
             </section>
         </main>
     </div>
