@@ -6,6 +6,9 @@ const State = {
     projects: [],
     activeBug: null,
     comments: [],
+    relatedBugs: [],
+    relatedSearchTimer: null,
+    relatedSearchPendingQuery: "",
     bugDetailReturnTo: "homeView",
     activeProjectIdForVersions: 0,
     versionsForActiveProject: [],
@@ -795,6 +798,7 @@ function handleBugRowClick(clickEvent) {
 async function openBugDetail(bugId) {
     State.activeBug = await apiRequest("GET", "/api/bugs/" + bugId);
     State.comments = await apiRequest("GET", "/api/bugs/" + bugId + "/comments");
+    State.relatedBugs = await apiRequest("GET", "/api/bugs/" + bugId + "/related");
     await renderBugDetail();
     showView("bugDetailView");
 }
@@ -833,7 +837,203 @@ async function renderBugDetail() {
     document.getElementById("detailBugUpdated").textContent = formatTimestamp(bug.UpdatedAt);
     document.getElementById("detailBugError").textContent = "";
 
+    renderRelatedBugs();
     renderComments();
+}
+
+function renderRelatedBugs() {
+    const tableBody = document.getElementById("relatedBugsTbody");
+    const emptyElement = document.getElementById("relatedBugsEmpty");
+    tableBody.innerHTML = "";
+
+    document.getElementById("addRelatedBugError").textContent = "";
+
+    if (State.relatedBugs.length === 0) {
+        emptyElement.classList.remove("hidden");
+        return;
+    }
+    emptyElement.classList.add("hidden");
+
+    const relatedCount = State.relatedBugs.length;
+    for (let relatedIndex = 0; relatedIndex < relatedCount; relatedIndex++) {
+        const related = State.relatedBugs[relatedIndex];
+        const row = document.createElement("tr");
+        row.dataset.bugId = String(related.Id);
+        row.innerHTML =
+            "<td>" + escapeHtml(related.Id) + "</td>" +
+            "<td>" + escapeHtml(related.Title) + "</td>" +
+            "<td><span class=\"badge badge-status-" + escapeHtml(related.Status) + "\">" + escapeHtml(statusLabel(related.Status)) + "</span></td>" +
+            "<td><span class=\"badge badge-priority-" + escapeHtml(related.Priority) + "\">" + escapeHtml(priorityLabel(related.Priority)) + "</span></td>" +
+            "<td><button type=\"button\" class=\"delete-button remove-related-button\" data-related-id=\"" + escapeHtml(related.Id) + "\">Remove</button></td>";
+        tableBody.appendChild(row);
+    }
+
+    const rows = tableBody.querySelectorAll("tr");
+    const rowCount = rows.length;
+    for (let rowIndex = 0; rowIndex < rowCount; rowIndex++) {
+        rows[rowIndex].addEventListener("click", handleRelatedBugRowClick);
+    }
+    const removeButtons = document.querySelectorAll(".remove-related-button");
+    const removeButtonCount = removeButtons.length;
+    for (let buttonIndex = 0; buttonIndex < removeButtonCount; buttonIndex++) {
+        removeButtons[buttonIndex].addEventListener("click", handleRemoveRelatedClick);
+    }
+}
+
+function handleRelatedBugRowClick(clickEvent) {
+    /* Clicking the row navigates to that bug. Clicking the Remove
+     * button inside the row should not navigate — guard against it. */
+    const target = clickEvent.target;
+    if (target && target.classList && target.classList.contains("remove-related-button")) {
+        return;
+    }
+    const row = clickEvent.currentTarget;
+    const bugId = Number(row.dataset.bugId);
+    openBugDetail(bugId);
+}
+
+const RelatedSearchMinChars = 3;
+const RelatedSearchDebounceMs = 300;
+
+function handleRelatedSearchInput(inputEvent) {
+    const query = inputEvent.currentTarget.value.trim();
+    State.relatedSearchPendingQuery = query;
+    if (State.relatedSearchTimer !== null) {
+        clearTimeout(State.relatedSearchTimer);
+        State.relatedSearchTimer = null;
+    }
+    if (query.length < RelatedSearchMinChars) {
+        hideRelatedSearchResults();
+        return;
+    }
+    State.relatedSearchTimer = setTimeout(performRelatedSearch, RelatedSearchDebounceMs);
+}
+
+async function performRelatedSearch() {
+    State.relatedSearchTimer = null;
+    const query = State.relatedSearchPendingQuery;
+    if (query.length < RelatedSearchMinChars) {
+        hideRelatedSearchResults();
+        return;
+    }
+    try {
+        const results = await apiRequest("GET", "/api/bugs?search=" + encodeURIComponent(query));
+        /* The user may have typed more characters while the fetch was in
+         * flight. If the input no longer matches what we searched for,
+         * discard this result so a stale request doesn't overwrite a
+         * newer one. */
+        if (State.relatedSearchPendingQuery !== query) {
+            return;
+        }
+        renderRelatedSearchResults(results);
+    } catch (apiError) {
+        document.getElementById("addRelatedBugError").textContent = apiError.message;
+    }
+}
+
+function renderRelatedSearchResults(results) {
+    const container = document.getElementById("relatedBugSearchResults");
+    container.innerHTML = "";
+
+    /* Exclude the active bug and any already-related bug from the list —
+     * clicking either would just produce a 400 or 409 from the server. */
+    const activeBugId = State.activeBug ? State.activeBug.Id : 0;
+    const relatedIds = {};
+    const relatedCount = State.relatedBugs.length;
+    for (let relatedIndex = 0; relatedIndex < relatedCount; relatedIndex++) {
+        relatedIds[State.relatedBugs[relatedIndex].Id] = true;
+    }
+
+    const filtered = [];
+    const resultCount = results.length;
+    for (let resultIndex = 0; resultIndex < resultCount; resultIndex++) {
+        const candidate = results[resultIndex];
+        if (candidate.Id === activeBugId) {
+            continue;
+        }
+        if (relatedIds[candidate.Id]) {
+            continue;
+        }
+        filtered.push(candidate);
+    }
+
+    if (filtered.length === 0) {
+        const emptyDiv = document.createElement("div");
+        emptyDiv.className = "related-search-empty";
+        emptyDiv.textContent = "No matching bugs.";
+        container.appendChild(emptyDiv);
+        container.classList.remove("hidden");
+        return;
+    }
+
+    const filteredCount = filtered.length;
+    for (let filteredIndex = 0; filteredIndex < filteredCount; filteredIndex++) {
+        const candidate = filtered[filteredIndex];
+        const resultRow = document.createElement("div");
+        resultRow.className = "related-search-result";
+        resultRow.dataset.bugId = String(candidate.Id);
+        resultRow.innerHTML =
+            "<span class=\"related-search-result-id\">#" + escapeHtml(candidate.Id) + "</span>" +
+            "<span class=\"related-search-result-title\">" + escapeHtml(candidate.Title) + "</span>" +
+            "<span class=\"related-search-result-status badge-status-" + escapeHtml(candidate.Status) + "\">" + escapeHtml(statusLabel(candidate.Status)) + "</span>";
+        resultRow.addEventListener("click", handleRelatedSearchResultClick);
+        container.appendChild(resultRow);
+    }
+    container.classList.remove("hidden");
+}
+
+function hideRelatedSearchResults() {
+    const container = document.getElementById("relatedBugSearchResults");
+    container.classList.add("hidden");
+    container.innerHTML = "";
+}
+
+async function handleRelatedSearchResultClick(clickEvent) {
+    const row = clickEvent.currentTarget;
+    const relatedId = Number(row.dataset.bugId);
+    const activeBug = State.activeBug;
+    if (activeBug === null || !relatedId) {
+        return;
+    }
+    const errorElement = document.getElementById("addRelatedBugError");
+    errorElement.textContent = "";
+    try {
+        await apiRequest("POST", "/api/bugs/" + activeBug.Id + "/related", { RelatedBugId: relatedId });
+        State.relatedBugs = await apiRequest("GET", "/api/bugs/" + activeBug.Id + "/related");
+        renderRelatedBugs();
+        document.getElementById("relatedBugSearchInput").value = "";
+        State.relatedSearchPendingQuery = "";
+        hideRelatedSearchResults();
+    } catch (apiError) {
+        errorElement.textContent = apiError.message;
+    }
+}
+
+function handleDocumentClickForRelatedSearch(clickEvent) {
+    const wrapper = document.querySelector(".related-search-wrapper");
+    if (!wrapper) {
+        return;
+    }
+    if (!wrapper.contains(clickEvent.target)) {
+        hideRelatedSearchResults();
+    }
+}
+
+async function handleRemoveRelatedClick(clickEvent) {
+    clickEvent.stopPropagation();
+    const button = clickEvent.currentTarget;
+    const relatedId = Number(button.dataset.relatedId);
+    const activeBug = State.activeBug;
+    if (activeBug === null) {
+        return;
+    }
+    try {
+        await apiRequest("DELETE", "/api/bugs/" + activeBug.Id + "/related/" + relatedId);
+        State.relatedBugs = await apiRequest("GET", "/api/bugs/" + activeBug.Id + "/related");
+        renderRelatedBugs();
+    } catch (apiError) {
+        alert(apiError.message);
+    }
 }
 
 async function handleSaveBugDetailClick() {
@@ -1838,6 +2038,8 @@ function attachEventHandlers() {
     document.getElementById("cancelBugEditButton").addEventListener("click", handleCancelBugEditClick);
     document.getElementById("bugEditForm").addEventListener("submit", handleBugEditSubmit);
     document.getElementById("newCommentForm").addEventListener("submit", handleNewCommentSubmit);
+    document.getElementById("relatedBugSearchInput").addEventListener("input", handleRelatedSearchInput);
+    document.addEventListener("click", handleDocumentClickForRelatedSearch);
 
     document.getElementById("newUserButton").addEventListener("click", handleNewUserButtonClick);
     document.getElementById("newUserForm").addEventListener("submit", handleNewUserSubmit);

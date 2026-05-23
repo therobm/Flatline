@@ -265,6 +265,30 @@
                         <div id="detailBugError" class="error-message"></div>
                     </div>
                 </div>
+                <div id="relatedBugsSection">
+                    <h3>Related bugs</h3>
+                    <table class="bug-table" id="relatedBugsTable">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Title</th>
+                                <th>Status</th>
+                                <th>Priority</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody id="relatedBugsTbody"></tbody>
+                    </table>
+                    <div id="relatedBugsEmpty" class="empty-message hidden">No related bugs.</div>
+                    <div class="add-related-search">
+                        <label for="relatedBugSearchInput">Add related bug</label>
+                        <div class="related-search-wrapper">
+                            <input type="text" id="relatedBugSearchInput" autocomplete="off" placeholder="Search by title (3+ chars)">
+                            <div id="relatedBugSearchResults" class="related-search-results hidden"></div>
+                        </div>
+                        <div id="addRelatedBugError" class="error-message"></div>
+                    </div>
+                </div>
                 <div id="commentsSection">
                     <h3>Comments</h3>
                     <div id="commentsList"></div>
