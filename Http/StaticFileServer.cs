@@ -1,14 +1,22 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
+using System.Security.Cryptography;
 
 namespace Flatline.Http
 {
+    public class StaticResource
+    {
+        public byte[] Bytes = new byte[0];
+        public string ETag = "";
+        public string ContentType = "";
+    }
+
     public static class StaticFileServer
     {
         private const string EmbeddedPrefix = "wwwroot/";
 
-        private static Dictionary<string, byte[]> s_ResourceCache = LoadResources();
+        private static Dictionary<string, StaticResource> s_ResourceCache = LoadResources();
 
         public static void Serve(FlatlineHttpContext context, string requestPath)
         {
@@ -24,20 +32,36 @@ namespace Flatline.Http
                 return;
             }
 
-            byte[] bytes;
-            if (!s_ResourceCache.TryGetValue(relativePath, out bytes))
+            StaticResource resource;
+            if (!s_ResourceCache.TryGetValue(relativePath, out resource))
             {
                 HttpResponseWriter.WriteEmpty(context, 404);
                 return;
             }
 
-            string contentType = GetContentType(relativePath);
-            HttpResponseWriter.WriteBytes(context, 200, contentType, bytes);
+            string clientETag;
+            if (context.Request.Headers.TryGetValue("If-None-Match", out clientETag))
+            {
+                if (clientETag == resource.ETag)
+                {
+                    /* 304 Not Modified: same ETag headers as the 200 path so the
+                     * client keeps caching, but no body and no Content-Type. */
+                    context.Response.StatusCode = 304;
+                    context.Response.BodyBytes = new byte[0];
+                    context.Response.Headers["ETag"] = resource.ETag;
+                    context.Response.Headers["Cache-Control"] = "no-cache";
+                    return;
+                }
+            }
+
+            context.Response.Headers["ETag"] = resource.ETag;
+            context.Response.Headers["Cache-Control"] = "no-cache";
+            HttpResponseWriter.WriteBytes(context, 200, resource.ContentType, resource.Bytes);
         }
 
-        private static Dictionary<string, byte[]> LoadResources()
+        private static Dictionary<string, StaticResource> LoadResources()
         {
-            Dictionary<string, byte[]> resourceMap = new Dictionary<string, byte[]>();
+            Dictionary<string, StaticResource> resourceMap = new Dictionary<string, StaticResource>();
             Assembly assembly = typeof(StaticFileServer).Assembly;
             string[] resourceNames = assembly.GetManifestResourceNames();
             int resourceCount = resourceNames.Length;
@@ -58,7 +82,13 @@ namespace Flatline.Http
                 {
                     MemoryStream memoryStream = new MemoryStream();
                     resourceStream.CopyTo(memoryStream);
-                    resourceMap[relativePath] = memoryStream.ToArray();
+                    byte[] bytes = memoryStream.ToArray();
+
+                    StaticResource resource = new StaticResource();
+                    resource.Bytes = bytes;
+                    resource.ETag = ComputeETag(bytes);
+                    resource.ContentType = GetContentType(relativePath);
+                    resourceMap[relativePath] = resource;
                 }
                 finally
                 {
@@ -66,6 +96,31 @@ namespace Flatline.Http
                 }
             }
             return resourceMap;
+        }
+
+        private static string ComputeETag(byte[] bytes)
+        {
+            /* SHA-256 of the bytes truncated to 16 hex chars. With wwwroot baked
+             * into the exe the ETag is stable for the lifetime of the process
+             * and changes whenever a new build replaces the resource. */
+            byte[] hash = SHA256.HashData(bytes);
+            char[] hex = new char[16];
+            for (int hashIndex = 0; hashIndex < 8; hashIndex++)
+            {
+                byte hashByte = hash[hashIndex];
+                hex[hashIndex * 2] = HexDigit(hashByte >> 4);
+                hex[hashIndex * 2 + 1] = HexDigit(hashByte & 0xF);
+            }
+            return "\"" + new string(hex) + "\"";
+        }
+
+        private static char HexDigit(int value)
+        {
+            if (value < 10)
+            {
+                return (char)('0' + value);
+            }
+            return (char)('a' + value - 10);
         }
 
         private static string GetContentType(string path)
