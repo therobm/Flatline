@@ -912,3 +912,81 @@ table.bug-table td:first-child {
     word-break: break-all;
     margin: var(--space-3) 0;
 }
+
+/* ------- Mobile (narrow viewports) -------
+ * Stack the sidebar above the main area, tighten padding, let tables
+ * scroll horizontally inside their section, and let forms/inputs use
+ * the full available width so settings fields no longer get cut off.
+ */
+@media (max-width: 768px) {
+    #app {
+        flex-direction: column;
+        min-height: auto;
+    }
+    #appSidebar {
+        width: 100%;
+        border-right: none;
+        border-bottom: var(--border-width) solid var(--color-sidebar-border);
+    }
+    .sidebar-nav {
+        overflow-y: visible;
+    }
+    .sidebar-footer {
+        flex-direction: row;
+        align-items: center;
+        justify-content: space-between;
+    }
+    #appMain {
+        padding: var(--space-3);
+    }
+    .view-header {
+        flex-wrap: wrap;
+        gap: var(--space-2);
+    }
+    .login-card {
+        width: 90%;
+        max-width: 320px;
+    }
+    /* Wrap filter dropdowns and sort controls instead of overflowing. */
+    .filters {
+        flex-wrap: wrap;
+        gap: var(--space-2);
+    }
+    /* Bug + settings sections: drop the inset margin so the full width
+     * is usable, and let any table inside scroll horizontally rather
+     * than blowing out the page. */
+    .bug-section > .filters,
+    .bug-section > table,
+    .bug-section > .empty-message,
+    .settings-section > * {
+        margin-left: var(--space-2);
+        margin-right: var(--space-2);
+    }
+    .bug-section > table,
+    .settings-section > table {
+        display: block;
+        overflow-x: auto;
+        width: calc(100% - var(--space-2) - var(--space-2));
+    }
+    /* Form fields go full width on mobile so labels + inputs don't
+     * clip past the settings panel edge. */
+    .settings-section input[type="text"],
+    .settings-section input[type="password"],
+    .settings-section input[type="email"],
+    .settings-section select,
+    .settings-section textarea,
+    #bugEditView input[type="text"],
+    #bugEditView select,
+    #bugEditView textarea,
+    #bugDetailView input[type="text"],
+    #bugDetailView select,
+    #bugDetailView textarea {
+        width: 100%;
+        max-width: 100%;
+        box-sizing: border-box;
+    }
+    .form-buttons {
+        flex-wrap: wrap;
+        gap: var(--space-2);
+    }
+}
