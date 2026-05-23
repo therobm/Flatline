@@ -13,6 +13,7 @@ const State = {
     activeProjectIdForVersions: 0,
     versionsForActiveProject: [],
     apiKeys: [],
+    browseSelectedIds: {},
     metadata: {
         Statuses: {},
         Priorities: {},
@@ -697,8 +698,15 @@ function renderBugRows(tableBodyId, emptyId, bugs) {
     const emptyElement = document.getElementById(emptyId);
     tableBody.innerHTML = "";
 
+    /* Browse view gets per-row checkboxes for bulk actions. Other views
+     * (Home, My bugs) keep the unchanged 6-column layout. */
+    const isBrowse = tableBodyId === "browseTbody";
+
     if (bugs.length === 0) {
         emptyElement.classList.remove("hidden");
+        if (isBrowse) {
+            updateBulkToolbar();
+        }
         return;
     }
     emptyElement.classList.add("hidden");
@@ -714,7 +722,17 @@ function renderBugRows(tableBodyId, emptyId, bugs) {
             assigneeText = bug.AssignedToDisplayName;
         }
 
+        let selectionCell = "";
+        if (isBrowse) {
+            let checkedAttr = "";
+            if (State.browseSelectedIds[bug.Id]) {
+                checkedAttr = " checked";
+            }
+            selectionCell = "<td class=\"select-cell\"><input type=\"checkbox\" class=\"browse-row-checkbox\" data-bug-id=\"" + escapeHtml(bug.Id) + "\"" + checkedAttr + "></td>";
+        }
+
         row.innerHTML =
+            selectionCell +
             "<td>" + escapeHtml(bug.Id) + "</td>" +
             "<td>" + escapeHtml(bug.Title) + "</td>" +
             "<td><span class=\"badge badge-status-" + escapeHtml(bug.Status) + "\">" + escapeHtml(statusLabel(bug.Status)) + "</span></td>" +
@@ -724,6 +742,16 @@ function renderBugRows(tableBodyId, emptyId, bugs) {
 
         row.addEventListener("click", handleBugRowClick);
         tableBody.appendChild(row);
+    }
+
+    if (isBrowse) {
+        const rowCheckboxes = tableBody.querySelectorAll(".browse-row-checkbox");
+        const checkboxCount = rowCheckboxes.length;
+        for (let checkboxIndex = 0; checkboxIndex < checkboxCount; checkboxIndex++) {
+            rowCheckboxes[checkboxIndex].addEventListener("click", handleRowCheckboxClick);
+            rowCheckboxes[checkboxIndex].addEventListener("change", handleRowCheckboxChange);
+        }
+        updateBulkToolbar();
     }
 }
 
@@ -804,6 +832,200 @@ async function loadBrowseSection() {
         assigneeContainerId: "browseAssigneeFilter",
         sortSelectId: "browseSortFilter"
     });
+}
+
+function clearBrowseSelection() {
+    State.browseSelectedIds = {};
+    const checkbox = document.getElementById("browseSelectAll");
+    if (checkbox) {
+        checkbox.checked = false;
+    }
+    updateBulkToolbar();
+}
+
+async function reloadBrowseAfterFilterChange() {
+    /* A filter change could hide some currently-selected rows, leaving
+     * the selection set with "ghost" ids the user can't see. Clear it
+     * so the bulk toolbar reflects only what's on screen. */
+    clearBrowseSelection();
+    await loadBrowseSection();
+}
+
+function selectedBrowseIdCount() {
+    return Object.keys(State.browseSelectedIds).length;
+}
+
+function selectedBrowseIdsArray() {
+    const ids = [];
+    const keys = Object.keys(State.browseSelectedIds);
+    const keyCount = keys.length;
+    for (let keyIndex = 0; keyIndex < keyCount; keyIndex++) {
+        ids.push(Number(keys[keyIndex]));
+    }
+    return ids;
+}
+
+function updateBulkToolbar() {
+    const toolbar = document.getElementById("bulkActionToolbar");
+    const label = document.getElementById("bulkSelectionLabel");
+    if (!toolbar || !label) {
+        return;
+    }
+    const count = selectedBrowseIdCount();
+    label.textContent = count + " selected";
+    if (count === 0) {
+        toolbar.classList.add("hidden");
+    } else {
+        toolbar.classList.remove("hidden");
+    }
+
+    /* Reflect 'all visible rows checked' into the header checkbox. */
+    const selectAll = document.getElementById("browseSelectAll");
+    if (selectAll) {
+        const visibleCheckboxes = document.querySelectorAll(".browse-row-checkbox");
+        const visibleCount = visibleCheckboxes.length;
+        let allChecked = visibleCount > 0;
+        for (let checkboxIndex = 0; checkboxIndex < visibleCount; checkboxIndex++) {
+            if (!visibleCheckboxes[checkboxIndex].checked) {
+                allChecked = false;
+                break;
+            }
+        }
+        selectAll.checked = allChecked;
+    }
+}
+
+function handleRowCheckboxClick(clickEvent) {
+    /* Stop the click from bubbling to the row-click handler that opens
+     * the bug detail. The change event still fires for state updates. */
+    clickEvent.stopPropagation();
+}
+
+function handleRowCheckboxChange(changeEvent) {
+    const checkbox = changeEvent.currentTarget;
+    const bugId = Number(checkbox.dataset.bugId);
+    if (checkbox.checked) {
+        State.browseSelectedIds[bugId] = true;
+    } else {
+        delete State.browseSelectedIds[bugId];
+    }
+    updateBulkToolbar();
+}
+
+function handleSelectAllChange(changeEvent) {
+    const checked = changeEvent.currentTarget.checked;
+    const rowCheckboxes = document.querySelectorAll(".browse-row-checkbox");
+    const checkboxCount = rowCheckboxes.length;
+    for (let checkboxIndex = 0; checkboxIndex < checkboxCount; checkboxIndex++) {
+        const rowCheckbox = rowCheckboxes[checkboxIndex];
+        rowCheckbox.checked = checked;
+        const bugId = Number(rowCheckbox.dataset.bugId);
+        if (checked) {
+            State.browseSelectedIds[bugId] = true;
+        } else {
+            delete State.browseSelectedIds[bugId];
+        }
+    }
+    updateBulkToolbar();
+}
+
+function populateBulkToolbarOptions() {
+    const statusSelect = document.getElementById("bulkStatusSelect");
+    const prioritySelect = document.getElementById("bulkPrioritySelect");
+    const assigneeSelect = document.getElementById("bulkAssigneeSelect");
+    if (!statusSelect || !prioritySelect || !assigneeSelect) {
+        return;
+    }
+
+    /* Status options. Keep '(no change)' as the first entry so the user
+     * has to pick deliberately; same for priority and assignee. */
+    statusSelect.innerHTML = "<option value=\"\">(no change)</option>";
+    const statusKeys = Object.keys(State.metadata.Statuses);
+    const statusKeyCount = statusKeys.length;
+    for (let statusIndex = 0; statusIndex < statusKeyCount; statusIndex++) {
+        const statusKey = statusKeys[statusIndex];
+        const option = document.createElement("option");
+        option.value = statusKey;
+        option.textContent = State.metadata.Statuses[statusKey];
+        statusSelect.appendChild(option);
+    }
+
+    prioritySelect.innerHTML = "<option value=\"\">(no change)</option>";
+    const priorityKeys = Object.keys(State.metadata.Priorities);
+    const priorityKeyCount = priorityKeys.length;
+    for (let priorityIndex = 0; priorityIndex < priorityKeyCount; priorityIndex++) {
+        const priorityKey = priorityKeys[priorityIndex];
+        const option = document.createElement("option");
+        option.value = priorityKey;
+        option.textContent = State.metadata.Priorities[priorityKey];
+        prioritySelect.appendChild(option);
+    }
+
+    assigneeSelect.innerHTML = "<option value=\"\">(no change)</option><option value=\"0\">Unassigned</option>";
+    const userCount = State.users.length;
+    for (let userIndex = 0; userIndex < userCount; userIndex++) {
+        const user = State.users[userIndex];
+        const option = document.createElement("option");
+        option.value = String(user.Id);
+        option.textContent = user.DisplayName + " (" + user.Username + ")";
+        assigneeSelect.appendChild(option);
+    }
+}
+
+async function handleBulkApplyClick() {
+    const errorElement = document.getElementById("bulkActionError");
+    errorElement.textContent = "";
+
+    const ids = selectedBrowseIdsArray();
+    if (ids.length === 0) {
+        return;
+    }
+
+    const statusValue = document.getElementById("bulkStatusSelect").value;
+    const priorityValue = document.getElementById("bulkPrioritySelect").value;
+    const assigneeValue = document.getElementById("bulkAssigneeSelect").value;
+
+    const payload = { Ids: ids };
+    if (statusValue) {
+        payload.Status = statusValue;
+        payload.UpdateStatus = true;
+    }
+    if (priorityValue) {
+        payload.Priority = priorityValue;
+        payload.UpdatePriority = true;
+    }
+    if (assigneeValue !== "") {
+        payload.AssignedTo = Number(assigneeValue);
+        payload.UpdateAssignee = true;
+    }
+
+    if (!payload.UpdateStatus && !payload.UpdatePriority && !payload.UpdateAssignee) {
+        errorElement.textContent = "Pick at least one field to change.";
+        return;
+    }
+
+    try {
+        await apiRequest("PUT", "/api/bugs/bulk", payload);
+        clearBrowseSelection();
+        /* Reset the three select boxes so a subsequent bulk action
+         * starts from a clean (no change) slate. */
+        document.getElementById("bulkStatusSelect").value = "";
+        document.getElementById("bulkPrioritySelect").value = "";
+        document.getElementById("bulkAssigneeSelect").value = "";
+        await loadBrowseSection();
+    } catch (apiError) {
+        errorElement.textContent = apiError.message;
+    }
+}
+
+function handleBulkClearClick() {
+    clearBrowseSelection();
+    /* Untick every row checkbox visible in the current page. */
+    const rowCheckboxes = document.querySelectorAll(".browse-row-checkbox");
+    const checkboxCount = rowCheckboxes.length;
+    for (let checkboxIndex = 0; checkboxIndex < checkboxCount; checkboxIndex++) {
+        rowCheckboxes[checkboxIndex].checked = false;
+    }
 }
 
 function handleBugRowClick(clickEvent) {
@@ -1330,6 +1552,12 @@ async function handleNavBrowseClick() {
     State.bugDetailReturnTo = "browseView";
     showView("browseView");
     await loadUsers();
+    /* Populate Bulk toolbar selects from the now-loaded user list +
+     * metadata. Re-running it on every nav is cheap and keeps it in
+     * sync if Settings added/removed a user since last visit. */
+    populateBulkToolbarOptions();
+    /* Going to Browse fresh starts with no selection. */
+    clearBrowseSelection();
     await loadBrowseSection();
 }
 
@@ -2046,10 +2274,13 @@ function attachEventHandlers() {
     document.getElementById("userAssignedPriorityFilter").addEventListener("change", refreshUserAssignedSection);
     document.getElementById("userAssignedIncludeClosed").addEventListener("change", refreshUserAssignedSection);
 
-    document.getElementById("browseStatusFilter").addEventListener("change", loadBrowseSection);
-    document.getElementById("browsePriorityFilter").addEventListener("change", loadBrowseSection);
-    document.getElementById("browseAssigneeFilter").addEventListener("change", loadBrowseSection);
-    document.getElementById("browseSortFilter").addEventListener("change", loadBrowseSection);
+    document.getElementById("browseStatusFilter").addEventListener("change", reloadBrowseAfterFilterChange);
+    document.getElementById("browsePriorityFilter").addEventListener("change", reloadBrowseAfterFilterChange);
+    document.getElementById("browseAssigneeFilter").addEventListener("change", reloadBrowseAfterFilterChange);
+    document.getElementById("browseSortFilter").addEventListener("change", reloadBrowseAfterFilterChange);
+    document.getElementById("browseSelectAll").addEventListener("change", handleSelectAllChange);
+    document.getElementById("bulkApplyButton").addEventListener("click", handleBulkApplyClick);
+    document.getElementById("bulkClearButton").addEventListener("click", handleBulkClearClick);
 
     document.getElementById("browseNewBugButton").addEventListener("click", handleNewBugClick);
     document.getElementById("backToListButton").addEventListener("click", handleBackToListClick);

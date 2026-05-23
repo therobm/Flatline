@@ -36,6 +36,22 @@ namespace Flatline.Routes
         public bool ClearFixedInVersion;
     }
 
+    public class BulkBugUpdateRequest
+    {
+        public List<long> Ids;
+        public eBugStatus Status;
+        public bool UpdateStatus;
+        public eBugPriority Priority;
+        public bool UpdatePriority;
+        public long AssignedTo;
+        public bool UpdateAssignee;
+    }
+
+    public class BulkBugUpdateResponse
+    {
+        public int Updated;
+    }
+
     public static class BugRoutes
     {
         public static void HandleListBugs(FlatlineHttpContext context)
@@ -332,6 +348,114 @@ namespace Flatline.Routes
                 return;
             }
             HttpResponseWriter.WriteJson(context, 200, bug);
+        }
+
+        private const int MaxBulkUpdateIds = 200;
+
+        public static void HandleBulkUpdateBugs(FlatlineHttpContext context)
+        {
+            User currentUser = AuthRoutes.GetCurrentUser(context);
+            if (currentUser == null)
+            {
+                HttpResponseWriter.WriteJson(context, 401, new { error = "Not authenticated." });
+                return;
+            }
+
+            BulkBugUpdateRequest updateRequest = HttpRequestReader.ReadBodyAsJson<BulkBugUpdateRequest>(context);
+            if (updateRequest == null || updateRequest.Ids == null || updateRequest.Ids.Count == 0)
+            {
+                HttpResponseWriter.WriteJson(context, 400, new { error = "Ids is required." });
+                return;
+            }
+            if (updateRequest.Ids.Count > MaxBulkUpdateIds)
+            {
+                HttpResponseWriter.WriteJson(context, 400, new { error = "Too many ids in one bulk update; max is " + MaxBulkUpdateIds + "." });
+                return;
+            }
+            if (!updateRequest.UpdateStatus && !updateRequest.UpdatePriority && !updateRequest.UpdateAssignee)
+            {
+                HttpResponseWriter.WriteJson(context, 400, new { error = "No fields to update." });
+                return;
+            }
+            if (updateRequest.UpdateStatus && !Enum.IsDefined(typeof(eBugStatus), updateRequest.Status))
+            {
+                HttpResponseWriter.WriteJson(context, 400, new { error = "Invalid status." });
+                return;
+            }
+            if (updateRequest.UpdatePriority && !Enum.IsDefined(typeof(eBugPriority), updateRequest.Priority))
+            {
+                HttpResponseWriter.WriteJson(context, 400, new { error = "Invalid priority." });
+                return;
+            }
+
+            string nowIso = DateTime.UtcNow.ToString("o");
+            int rowsAffected = 0;
+            SqliteConnection connection = SqliteConnectionFactory.OpenConnection();
+            try
+            {
+                SqliteTransaction transaction = connection.BeginTransaction();
+                try
+                {
+                    SqliteCommand updateCommand = connection.CreateCommand();
+                    updateCommand.Transaction = transaction;
+                    StringBuilder sqlBuilder = new StringBuilder();
+                    sqlBuilder.Append("UPDATE bugs SET updated_at = $updated_at");
+                    updateCommand.Parameters.AddWithValue("$updated_at", nowIso);
+
+                    if (updateRequest.UpdateStatus)
+                    {
+                        sqlBuilder.Append(", status = $status");
+                        updateCommand.Parameters.AddWithValue("$status", (int)updateRequest.Status);
+                    }
+                    if (updateRequest.UpdatePriority)
+                    {
+                        sqlBuilder.Append(", priority = $priority");
+                        updateCommand.Parameters.AddWithValue("$priority", (int)updateRequest.Priority);
+                    }
+                    if (updateRequest.UpdateAssignee)
+                    {
+                        sqlBuilder.Append(", assigned_to = $assigned_to");
+                        if (updateRequest.AssignedTo > 0)
+                        {
+                            updateCommand.Parameters.AddWithValue("$assigned_to", updateRequest.AssignedTo);
+                        }
+                        else
+                        {
+                            updateCommand.Parameters.AddWithValue("$assigned_to", DBNull.Value);
+                        }
+                    }
+
+                    sqlBuilder.Append(" WHERE id IN (");
+                    int idCount = updateRequest.Ids.Count;
+                    for (int idIndex = 0; idIndex < idCount; idIndex++)
+                    {
+                        if (idIndex > 0)
+                        {
+                            sqlBuilder.Append(",");
+                        }
+                        string paramName = "$id_" + idIndex;
+                        sqlBuilder.Append(paramName);
+                        updateCommand.Parameters.AddWithValue(paramName, updateRequest.Ids[idIndex]);
+                    }
+                    sqlBuilder.Append(");");
+                    updateCommand.CommandText = sqlBuilder.ToString();
+                    rowsAffected = updateCommand.ExecuteNonQuery();
+                    transaction.Commit();
+                }
+                catch (Exception)
+                {
+                    transaction.Rollback();
+                    throw;
+                }
+            }
+            finally
+            {
+                connection.Close();
+            }
+
+            BulkBugUpdateResponse response = new BulkBugUpdateResponse();
+            response.Updated = rowsAffected;
+            HttpResponseWriter.WriteJson(context, 200, response);
         }
 
         public static void HandleCreateBug(FlatlineHttpContext context)
