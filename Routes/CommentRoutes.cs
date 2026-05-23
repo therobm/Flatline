@@ -71,7 +71,11 @@ namespace Flatline.Routes
                 HttpResponseWriter.WriteJson(context, 401, new { error = "Not authenticated." });
                 return;
             }
+            CreateCommentForUser(context, currentUser, bugId);
+        }
 
+        public static void CreateCommentForUser(FlatlineHttpContext context, User author, long bugId)
+        {
             CommentCreateRequest createRequest = HttpRequestReader.ReadBodyAsJson<CommentCreateRequest>(context);
             if (createRequest == null || string.IsNullOrWhiteSpace(createRequest.Text))
             {
@@ -97,7 +101,7 @@ namespace Flatline.Routes
                 insertCommand.CommandText = "INSERT INTO comments (bug_id, user_id, text, created_at) VALUES ($bug_id, $user_id, $text, $created_at); "
                     + "SELECT last_insert_rowid();";
                 insertCommand.Parameters.AddWithValue("$bug_id", bugId);
-                insertCommand.Parameters.AddWithValue("$user_id", currentUser.Id);
+                insertCommand.Parameters.AddWithValue("$user_id", author.Id);
                 insertCommand.Parameters.AddWithValue("$text", createRequest.Text);
                 insertCommand.Parameters.AddWithValue("$created_at", nowIso);
 
@@ -113,11 +117,11 @@ namespace Flatline.Routes
                 Comment comment = new Comment();
                 comment.Id = newCommentId;
                 comment.BugId = bugId;
-                comment.UserId = currentUser.Id;
+                comment.UserId = author.Id;
                 comment.Text = createRequest.Text;
                 comment.CreatedAt = nowIso;
-                comment.Username = currentUser.Username;
-                comment.DisplayName = currentUser.DisplayName;
+                comment.Username = author.Username;
+                comment.DisplayName = author.DisplayName;
                 HttpResponseWriter.WriteJson(context, 200, comment);
             }
             finally

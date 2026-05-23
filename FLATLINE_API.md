@@ -34,12 +34,13 @@ All endpoints require the `X-API-Key` header. Endpoints under
 session-cookie endpoints under `/api/...` (used by the web UI) still
 require a logged-in user.
 
-| Method | Path                          | Purpose                       |
-|--------|-------------------------------|-------------------------------|
-| POST   | `/api/external/bugs`          | Create a new bug.             |
-| GET    | `/api/external/bugs`          | List bugs (filterable).       |
-| GET    | `/api/external/bugs/{id}`     | Fetch one bug by id.          |
-| PUT    | `/api/external/bugs/{id}`     | Change a bug's status.        |
+| Method | Path                                | Purpose                              |
+|--------|-------------------------------------|--------------------------------------|
+| POST   | `/api/external/bugs`                | Create a new bug.                    |
+| GET    | `/api/external/bugs`                | List bugs (filterable).              |
+| GET    | `/api/external/bugs/{id}`           | Fetch one bug by id.                 |
+| PUT    | `/api/external/bugs/{id}`           | Change a bug's status.               |
+| POST   | `/api/external/bugs/{id}/comments`  | Post a comment on a bug.             |
 
 ## Create a bug
 
@@ -236,6 +237,59 @@ curl -k -X PUT "https://<your-flatline-host>:5443/api/external/bugs/42" \
   -H "Content-Type: application/json" \
   -H "X-API-Key: flk_REPLACE_ME" \
   -d '{"Status":"Closed"}'
+```
+
+## Post a comment on a bug
+
+```
+POST /api/external/bugs/{id}/comments
+Content-Type: application/json
+X-API-Key: flk_<rest-of-key>
+```
+
+Adds a comment to the bug. The comment is recorded as authored by the
+user who owns the API key. Comments render markdown in the UI, so you
+can paste PR links, fenced code blocks, etc.
+
+### Request body
+
+| Field  | Type   | Required | Notes                              |
+|--------|--------|----------|------------------------------------|
+| `Text` | string | yes      | Non-empty. May contain newlines.   |
+
+### Response
+
+`200 OK` with the created comment object:
+
+```json
+{
+  "Id": 17,
+  "BugId": 42,
+  "UserId": 2,
+  "Text": "Fixed in PR #123.",
+  "CreatedAt": "2026-05-23T18:04:11.1234567Z",
+  "Username": "api-bot",
+  "DisplayName": "API Bot"
+}
+```
+
+The bug's `UpdatedAt` is also bumped server-side.
+
+### Errors
+
+| Status | Body                                          | Cause                                  |
+|--------|-----------------------------------------------|----------------------------------------|
+| 400    | `{"error":"Comment text is required."}`       | Body missing or `Text` empty.          |
+| 401    | `{"error":"Invalid or missing API key."}`     | `X-API-Key` header missing or unknown. |
+| 404    | `{"error":"Bug not found."}`                  | No bug with that id.                   |
+
+### Example
+
+```bash
+curl -k -X POST "https://<your-flatline-host>:5443/api/external/bugs/42/comments" \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: flk_REPLACE_ME" \
+  -d '{"Text":"Fixed in PR https://github.com/therobm/Flatline/pull/123."}'
 ```
 
 ## Discovering project and version IDs

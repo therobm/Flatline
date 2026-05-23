@@ -52,6 +52,11 @@ namespace Flatline.Http
                 ExternalBugRoutes.HandleUpdateExternalBugStatus(context, externalBugId);
                 return;
             }
+            if (method == "POST" && TryMatchExternalBugCommentsPath(path, out externalBugId))
+            {
+                ExternalBugRoutes.HandleCreateExternalBugComment(context, externalBugId);
+                return;
+            }
 
             if (method == "GET" && path == "/api/api-keys")
             {
@@ -241,6 +246,29 @@ namespace Flatline.Http
                 return false;
             }
             string idPart = path.Substring(prefix.Length);
+            if (idPart.Contains('/'))
+            {
+                return false;
+            }
+            return long.TryParse(idPart, out bugId);
+        }
+
+        private static bool TryMatchExternalBugCommentsPath(string path, out long bugId)
+        {
+            bugId = 0;
+            const string prefix = "/api/external/bugs/";
+            const string suffix = "/comments";
+            if (!path.StartsWith(prefix) || !path.EndsWith(suffix))
+            {
+                return false;
+            }
+            int idStart = prefix.Length;
+            int idEnd = path.Length - suffix.Length;
+            if (idEnd <= idStart)
+            {
+                return false;
+            }
+            string idPart = path.Substring(idStart, idEnd - idStart);
             if (idPart.Contains('/'))
             {
                 return false;
