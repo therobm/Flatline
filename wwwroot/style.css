@@ -558,3 +558,28 @@ form button:hover {
 .form-buttons button {
     margin-top: 0;
 }
+
+.section-description {
+    color: #52606d;
+    font-size: 13px;
+    margin: 0 0 12px 0;
+}
+
+.section-description code {
+    background-color: #f4f5f7;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 12px;
+}
+
+.api-key-reveal {
+    background-color: #f4f5f7;
+    padding: 12px;
+    border-radius: 4px;
+    border: 1px solid #cbd2d9;
+    font-family: ui-monospace, "Cascadia Code", Menlo, Consolas, monospace;
+    font-size: 13px;
+    user-select: all;
+    word-break: break-all;
+    margin: 8px 0;
+}

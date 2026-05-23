@@ -9,6 +9,7 @@ const State = {
     bugDetailReturnTo: "homeView",
     activeProjectIdForVersions: 0,
     versionsForActiveProject: [],
+    apiKeys: [],
     metadata: {
         Statuses: {},
         Priorities: {},
@@ -1040,11 +1041,133 @@ async function handleNavSettingsClick() {
     document.getElementById("versionsPanel").classList.add("hidden");
     document.getElementById("newVersionPanel").classList.add("hidden");
     document.getElementById("editVersionPanel").classList.add("hidden");
+    document.getElementById("newApiKeyPanel").classList.add("hidden");
+    document.getElementById("apiKeyRevealPanel").classList.add("hidden");
     State.activeProjectIdForVersions = 0;
     await loadUsers();
     renderUserTable();
     await loadProjects();
     renderProjectTable();
+    await loadApiKeys();
+    renderApiKeyTable();
+}
+
+async function loadApiKeys() {
+    State.apiKeys = await apiRequest("GET", "/api/api-keys");
+}
+
+function renderApiKeyTable() {
+    const tableBody = document.getElementById("apiKeyTableBody");
+    const emptyElement = document.getElementById("apiKeyEmpty");
+    tableBody.innerHTML = "";
+
+    if (State.apiKeys.length === 0) {
+        emptyElement.classList.remove("hidden");
+        return;
+    }
+    emptyElement.classList.add("hidden");
+
+    const keyCount = State.apiKeys.length;
+    for (let keyIndex = 0; keyIndex < keyCount; keyIndex++) {
+        const apiKey = State.apiKeys[keyIndex];
+        const row = document.createElement("tr");
+        let lastUsedText = "(never)";
+        if (apiKey.LastUsedAt) {
+            lastUsedText = formatTimestamp(apiKey.LastUsedAt);
+        }
+        let actionCell = "";
+        if (State.currentUser.IsAdmin) {
+            actionCell = "<button type=\"button\" class=\"delete-button delete-api-key-button\" data-api-key-id=\"" + escapeHtml(apiKey.Id) + "\">Revoke</button>";
+        }
+        row.innerHTML =
+            "<td>" + escapeHtml(apiKey.Name) + "</td>" +
+            "<td>" + escapeHtml(apiKey.UserDisplayName) + " (" + escapeHtml(apiKey.UserUsername) + ")</td>" +
+            "<td><code>" + escapeHtml(apiKey.KeyPrefix) + "&hellip;</code></td>" +
+            "<td>" + escapeHtml(formatTimestamp(apiKey.CreatedAt)) + "</td>" +
+            "<td>" + escapeHtml(lastUsedText) + "</td>" +
+            "<td>" + actionCell + "</td>";
+        tableBody.appendChild(row);
+    }
+
+    const deleteButtons = document.querySelectorAll(".delete-api-key-button");
+    const deleteButtonCount = deleteButtons.length;
+    for (let buttonIndex = 0; buttonIndex < deleteButtonCount; buttonIndex++) {
+        deleteButtons[buttonIndex].addEventListener("click", handleDeleteApiKeyClick);
+    }
+}
+
+function handleNewApiKeyButtonClick() {
+    document.getElementById("apiKeyRevealPanel").classList.add("hidden");
+    document.getElementById("newApiKeyPanel").classList.remove("hidden");
+    document.getElementById("newApiKeyName").value = "";
+    document.getElementById("newApiKeyError").textContent = "";
+
+    const userSelect = document.getElementById("newApiKeyUser");
+    userSelect.innerHTML = "";
+    const placeholder = document.createElement("option");
+    placeholder.value = "";
+    placeholder.textContent = "(select a user)";
+    userSelect.appendChild(placeholder);
+    const userCount = State.users.length;
+    for (let userIndex = 0; userIndex < userCount; userIndex++) {
+        const user = State.users[userIndex];
+        const optionElement = document.createElement("option");
+        optionElement.value = String(user.Id);
+        optionElement.textContent = user.DisplayName + " (" + user.Username + ")";
+        userSelect.appendChild(optionElement);
+    }
+}
+
+function handleCancelNewApiKeyClick() {
+    document.getElementById("newApiKeyPanel").classList.add("hidden");
+}
+
+async function handleNewApiKeySubmit(submitEvent) {
+    submitEvent.preventDefault();
+    const errorElement = document.getElementById("newApiKeyError");
+    errorElement.textContent = "";
+    const name = document.getElementById("newApiKeyName").value.trim();
+    const userRaw = document.getElementById("newApiKeyUser").value;
+    if (!name) {
+        errorElement.textContent = "Name is required.";
+        return;
+    }
+    if (!userRaw) {
+        errorElement.textContent = "Owner is required.";
+        return;
+    }
+    const userId = Number(userRaw);
+    try {
+        const created = await apiRequest("POST", "/api/api-keys", { Name: name, UserId: userId });
+        document.getElementById("newApiKeyPanel").classList.add("hidden");
+        document.getElementById("apiKeyRevealValue").textContent = created.Key;
+        document.getElementById("apiKeyRevealPanel").classList.remove("hidden");
+        await loadApiKeys();
+        renderApiKeyTable();
+    } catch (apiError) {
+        errorElement.textContent = apiError.message;
+    }
+}
+
+function handleApiKeyRevealDoneClick() {
+    document.getElementById("apiKeyRevealPanel").classList.add("hidden");
+    document.getElementById("apiKeyRevealValue").textContent = "";
+}
+
+async function handleDeleteApiKeyClick(clickEvent) {
+    const button = clickEvent.currentTarget;
+    const apiKeyId = Number(button.dataset.apiKeyId);
+    const confirmed = window.confirm("Revoke this API key? Any external tool using it will lose access.");
+    if (!confirmed) {
+        return;
+    }
+    try {
+        await apiRequest("DELETE", "/api/api-keys/" + apiKeyId);
+        await loadApiKeys();
+        renderApiKeyTable();
+    } catch (apiError) {
+        alert(apiError.message);
+    }
 }
 
 function renderProjectTable() {
@@ -1603,6 +1726,10 @@ function attachEventHandlers() {
     document.getElementById("cancelNewVersionButton").addEventListener("click", handleCancelNewVersionClick);
     document.getElementById("editVersionForm").addEventListener("submit", handleEditVersionSubmit);
     document.getElementById("cancelEditVersionButton").addEventListener("click", handleCancelEditVersionClick);
+    document.getElementById("newApiKeyButton").addEventListener("click", handleNewApiKeyButtonClick);
+    document.getElementById("newApiKeyForm").addEventListener("submit", handleNewApiKeySubmit);
+    document.getElementById("cancelNewApiKeyButton").addEventListener("click", handleCancelNewApiKeyClick);
+    document.getElementById("apiKeyRevealDoneButton").addEventListener("click", handleApiKeyRevealDoneClick);
     document.getElementById("cancelBugEditButton").addEventListener("click", handleCancelBugEditClick);
     document.getElementById("bugEditForm").addEventListener("submit", handleBugEditSubmit);
     document.getElementById("newCommentForm").addEventListener("submit", handleNewCommentSubmit);

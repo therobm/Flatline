@@ -303,6 +303,11 @@ namespace Flatline.Routes
                 HttpResponseWriter.WriteJson(context, 400, new { error = "Body is required." });
                 return;
             }
+            CreateBugForUser(context, currentUser, createRequest);
+        }
+
+        public static void CreateBugForUser(FlatlineHttpContext context, User createdByUser, BugCreateRequest createRequest)
+        {
             if (string.IsNullOrWhiteSpace(createRequest.Title))
             {
                 HttpResponseWriter.WriteJson(context, 400, new { error = "Title is required." });
@@ -351,7 +356,7 @@ namespace Flatline.Routes
                 }
                 insertCommand.Parameters.AddWithValue("$status", (int)eBugStatus.Open);
                 insertCommand.Parameters.AddWithValue("$priority", (int)createRequest.Priority);
-                insertCommand.Parameters.AddWithValue("$created_by", currentUser.Id);
+                insertCommand.Parameters.AddWithValue("$created_by", createdByUser.Id);
                 if (createRequest.AssignedTo > 0)
                 {
                     insertCommand.Parameters.AddWithValue("$assigned_to", createRequest.AssignedTo);

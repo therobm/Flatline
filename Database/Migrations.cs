@@ -152,6 +152,19 @@ namespace Flatline.Database
                 );
 
                 CREATE INDEX idx_comments_bug_id ON comments(bug_id);
+
+                CREATE TABLE api_keys (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER NOT NULL,
+                    name TEXT NOT NULL,
+                    key_hash TEXT NOT NULL UNIQUE,
+                    key_prefix TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    last_used_at TEXT,
+                    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+                );
+
+                CREATE INDEX idx_api_keys_user_id ON api_keys(user_id);
             ";
             migrationList.Add(version1);
 

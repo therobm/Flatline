@@ -45,6 +45,16 @@ namespace Flatline.Http
             return "";
         }
 
+        public static string GetHeaderValue(FlatlineHttpContext context, string name)
+        {
+            string value;
+            if (context.Request.Headers.TryGetValue(name, out value))
+            {
+                return value;
+            }
+            return "";
+        }
+
         public static void SetCookie(FlatlineHttpContext context, string name, string value, DateTime expiresUtc, bool httpOnly, string path)
         {
             context.Response.SetCookie(name, value, expiresUtc, httpOnly, path, context.IsHttps);
