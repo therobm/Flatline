@@ -1068,3 +1068,18 @@ table.bug-table td:first-child {
 .markdown-body a {
     color: var(--color-link);
 }
+
+/* Browse-section pagination footer (Prev / Page N / Next). */
+.pagination {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-2) var(--space-3) var(--space-3) var(--space-3);
+}
+
+.pagination button[disabled] {
+    color: var(--color-text-muted);
+    cursor: default;
+    border-style: outset;
+    opacity: 0.6;
+}
