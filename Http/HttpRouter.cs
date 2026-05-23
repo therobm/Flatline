@@ -95,6 +95,28 @@ namespace Flatline.Http
                         return;
                     }
                 }
+                if (bugSubPath == "/related")
+                {
+                    if (method == "GET")
+                    {
+                        RelatedBugRoutes.HandleListRelated(context, bugId);
+                        return;
+                    }
+                    if (method == "POST")
+                    {
+                        RelatedBugRoutes.HandleAddRelated(context, bugId);
+                        return;
+                    }
+                }
+                long relatedBugId = 0;
+                if (TryMatchRelatedBugId(bugSubPath, out relatedBugId))
+                {
+                    if (method == "DELETE")
+                    {
+                        RelatedBugRoutes.HandleDeleteRelated(context, bugId, relatedBugId);
+                        return;
+                    }
+                }
             }
 
             if (method == "GET" && path == "/api/projects")
@@ -187,6 +209,22 @@ namespace Flatline.Http
             }
 
             HttpResponseWriter.WriteJson(context, 404, new { error = "Not found" });
+        }
+
+        private static bool TryMatchRelatedBugId(string subPath, out long relatedBugId)
+        {
+            relatedBugId = 0;
+            const string prefix = "/related/";
+            if (!subPath.StartsWith(prefix))
+            {
+                return false;
+            }
+            string idPart = subPath.Substring(prefix.Length);
+            if (idPart.Contains('/'))
+            {
+                return false;
+            }
+            return long.TryParse(idPart, out relatedBugId);
         }
 
         private static bool TryMatchBugPath(string path, out long bugId, out string subPath)

@@ -165,6 +165,18 @@ namespace Flatline.Database
                 );
 
                 CREATE INDEX idx_api_keys_user_id ON api_keys(user_id);
+
+                CREATE TABLE related_bugs (
+                    bug_id INTEGER NOT NULL,
+                    related_bug_id INTEGER NOT NULL,
+                    created_at TEXT NOT NULL,
+                    PRIMARY KEY (bug_id, related_bug_id),
+                    FOREIGN KEY (bug_id) REFERENCES bugs(id) ON DELETE CASCADE,
+                    FOREIGN KEY (related_bug_id) REFERENCES bugs(id) ON DELETE CASCADE,
+                    CHECK (bug_id != related_bug_id)
+                );
+
+                CREATE INDEX idx_related_bugs_bug_id ON related_bugs(bug_id);
             ";
             migrationList.Add(version1);
 

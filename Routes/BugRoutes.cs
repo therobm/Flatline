@@ -56,6 +56,7 @@ namespace Flatline.Routes
             string unassigned = HttpRequestReader.GetQueryValue(context, "unassigned");
             string createdBy = HttpRequestReader.GetQueryValue(context, "createdBy");
             string excludeClosed = HttpRequestReader.GetQueryValue(context, "excludeClosed");
+            string search = HttpRequestReader.GetQueryValue(context, "search");
             string projectFilter = HttpRequestReader.GetQueryValue(context, "projectId");
 
             List<int> parsedStatuses = new List<int>();
@@ -260,6 +261,15 @@ namespace Flatline.Routes
                 {
                     sqlBuilder.Append(" AND b.status != $excluded_closed_status");
                     selectCommand.Parameters.AddWithValue("$excluded_closed_status", (int)eBugStatus.Closed);
+                }
+                if (!string.IsNullOrEmpty(search))
+                {
+                    /* SQLite LIKE is case-insensitive for ASCII by default. Escape
+                     * the LIKE wildcards in the user's input so a literal "%" or "_"
+                     * does not silently broaden the match. */
+                    string escaped = search.Replace("\\", "\\\\").Replace("%", "\\%").Replace("_", "\\_");
+                    sqlBuilder.Append(" AND b.title LIKE $title_search ESCAPE '\\'");
+                    selectCommand.Parameters.AddWithValue("$title_search", "%" + escaped + "%");
                 }
 
                 if (sort == "priority")
