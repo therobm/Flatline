@@ -1,10 +1,14 @@
+using System.Collections.Generic;
 using System.IO;
+using System.Reflection;
 
 namespace Flatline.Http
 {
     public static class StaticFileServer
     {
-        private const string WwwRoot = "wwwroot";
+        private const string EmbeddedPrefix = "wwwroot/";
+
+        private static Dictionary<string, byte[]> s_ResourceCache = LoadResources();
 
         public static void Serve(FlatlineHttpContext context, string requestPath)
         {
@@ -20,16 +24,48 @@ namespace Flatline.Http
                 return;
             }
 
-            string fullPath = Path.Combine(WwwRoot, relativePath);
-            if (!File.Exists(fullPath))
+            byte[] bytes;
+            if (!s_ResourceCache.TryGetValue(relativePath, out bytes))
             {
                 HttpResponseWriter.WriteEmpty(context, 404);
                 return;
             }
 
-            byte[] bytes = File.ReadAllBytes(fullPath);
             string contentType = GetContentType(relativePath);
             HttpResponseWriter.WriteBytes(context, 200, contentType, bytes);
+        }
+
+        private static Dictionary<string, byte[]> LoadResources()
+        {
+            Dictionary<string, byte[]> resourceMap = new Dictionary<string, byte[]>();
+            Assembly assembly = typeof(StaticFileServer).Assembly;
+            string[] resourceNames = assembly.GetManifestResourceNames();
+            int resourceCount = resourceNames.Length;
+            for (int resourceIndex = 0; resourceIndex < resourceCount; resourceIndex++)
+            {
+                string resourceName = resourceNames[resourceIndex];
+                if (!resourceName.StartsWith(EmbeddedPrefix))
+                {
+                    continue;
+                }
+                string relativePath = resourceName.Substring(EmbeddedPrefix.Length);
+                Stream resourceStream = assembly.GetManifestResourceStream(resourceName);
+                if (resourceStream == null)
+                {
+                    continue;
+                }
+                try
+                {
+                    MemoryStream memoryStream = new MemoryStream();
+                    resourceStream.CopyTo(memoryStream);
+                    resourceMap[relativePath] = memoryStream.ToArray();
+                }
+                finally
+                {
+                    resourceStream.Dispose();
+                }
+            }
+            return resourceMap;
         }
 
         private static string GetContentType(string path)
