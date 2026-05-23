@@ -37,8 +37,13 @@ namespace Flatline.Routes
                     + "(SELECT COUNT(*) FROM versions v WHERE v.project_id = p.id) AS version_count "
                     + "FROM projects p ORDER BY p.name ASC;";
                 SqliteDataReader reader = selectCommand.ExecuteReader();
-                for (bool hasRow = reader.Read(); hasRow; hasRow = reader.Read())
+                const int maxRows = 100000;
+                for (int rowIndex = 0; rowIndex < maxRows; rowIndex++)
                 {
+                    if (!reader.Read())
+                    {
+                        break;
+                    }
                     Project project = new Project();
                     project.Id = reader.GetInt64(0);
                     project.Name = reader.GetString(1);

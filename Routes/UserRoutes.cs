@@ -42,8 +42,13 @@ namespace Flatline.Routes
                 SqliteCommand selectCommand = connection.CreateCommand();
                 selectCommand.CommandText = "SELECT id, username, display_name, is_admin, created_at FROM users ORDER BY username ASC;";
                 SqliteDataReader reader = selectCommand.ExecuteReader();
-                for (bool hasRow = reader.Read(); hasRow; hasRow = reader.Read())
+                const int maxRows = 100000;
+                for (int rowIndex = 0; rowIndex < maxRows; rowIndex++)
                 {
+                    if (!reader.Read())
+                    {
+                        break;
+                    }
                     User user = new User();
                     user.Id = reader.GetInt64(0);
                     user.Username = reader.GetString(1);

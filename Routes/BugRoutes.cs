@@ -296,8 +296,13 @@ namespace Flatline.Routes
 
                 selectCommand.CommandText = sqlBuilder.ToString();
                 SqliteDataReader reader = selectCommand.ExecuteReader();
-                for (bool hasRow = reader.Read(); hasRow; hasRow = reader.Read())
+                const int maxRows = 100000;
+                for (int rowIndex = 0; rowIndex < maxRows; rowIndex++)
                 {
+                    if (!reader.Read())
+                    {
+                        break;
+                    }
                     Bug bug = ReadBugFromReader(reader);
                     bugList.Add(bug);
                 }
