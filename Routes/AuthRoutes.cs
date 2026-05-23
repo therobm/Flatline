@@ -1,8 +1,10 @@
 using System;
+using System.Collections.Generic;
 using System.Security.Cryptography;
 using Microsoft.Data.Sqlite;
 using Flatline.Database;
 using Flatline.Http;
+using Flatline.Logging;
 using Flatline.Models;
 
 namespace Flatline.Routes
@@ -13,10 +15,29 @@ namespace Flatline.Routes
         public string Password = "";
     }
 
+    /* Per-IP login attempt tracker for the rate limiter. Cleared on success. */
+    public class LoginAttemptTracker
+    {
+        public int ConsecutiveFailures;
+        public DateTime LockedUntilUtc;
+    }
+
     public static class AuthRoutes
     {
         private const string SessionCookieName = "flatline_session";
         private const int SessionLifetimeDays = 30;
+
+        /* After this many consecutive failed logins from one IP, the IP is
+         * locked out for LoginLockoutSeconds. Counter resets on success. */
+        private const int LoginFailuresBeforeLockout = 5;
+        private const int LoginLockoutSeconds = 60;
+
+        /* Used by the rate-limiter and by the constant-time bcrypt path. The
+         * dummy hash is generated once per process so the unknown-user branch
+         * spends the same ~100ms in BCrypt.Verify as the known-user branch. */
+        private static Dictionary<string, LoginAttemptTracker> s_LoginAttempts = new Dictionary<string, LoginAttemptTracker>();
+        private static readonly object s_LoginAttemptsLock = new object();
+        private static readonly string s_DummyPasswordHash = BCrypt.Net.BCrypt.HashPassword(Guid.NewGuid().ToString("N"));
 
         public static void HandleLogin(FlatlineHttpContext context)
         {
@@ -24,6 +45,19 @@ namespace Flatline.Routes
             if (loginRequest == null || string.IsNullOrWhiteSpace(loginRequest.Username) || string.IsNullOrWhiteSpace(loginRequest.Password))
             {
                 HttpResponseWriter.WriteJson(context, 400, new { error = "Username and password are required." });
+                return;
+            }
+
+            string remoteIp = context.RemoteIpAddress;
+            if (string.IsNullOrEmpty(remoteIp))
+            {
+                remoteIp = "unknown";
+            }
+
+            if (IsLockedOut(remoteIp))
+            {
+                Log.Warning("Login rate-limited for " + remoteIp + " (username=" + loginRequest.Username + ").");
+                HttpResponseWriter.WriteJson(context, 429, new { error = "Too many failed login attempts. Try again later." });
                 return;
             }
 
@@ -35,27 +69,38 @@ namespace Flatline.Routes
                 selectCommand.Parameters.AddWithValue("$username", loginRequest.Username);
 
                 SqliteDataReader reader = selectCommand.ExecuteReader();
-                if (!reader.Read())
+                bool userFound = reader.Read();
+                long userId = 0;
+                string username = "";
+                string passwordHash = s_DummyPasswordHash;
+                string displayName = "";
+                bool isAdmin = false;
+                string createdAt = "";
+                if (userFound)
                 {
-                    reader.Close();
-                    HttpResponseWriter.WriteJson(context, 401, new { error = "Invalid username or password." });
-                    return;
+                    userId = reader.GetInt64(0);
+                    username = reader.GetString(1);
+                    passwordHash = reader.GetString(2);
+                    displayName = reader.GetString(3);
+                    isAdmin = reader.GetInt64(4) != 0;
+                    createdAt = reader.GetString(5);
                 }
-
-                long userId = reader.GetInt64(0);
-                string username = reader.GetString(1);
-                string passwordHash = reader.GetString(2);
-                string displayName = reader.GetString(3);
-                bool isAdmin = reader.GetInt64(4) != 0;
-                string createdAt = reader.GetString(5);
                 reader.Close();
 
+                /* Always run BCrypt.Verify, even when the user is unknown, so the
+                 * 'unknown user' and 'wrong password' branches take the same wall
+                 * time. Closes the timing oracle that previously let an attacker
+                 * enumerate which usernames existed. */
                 bool passwordValid = BCrypt.Net.BCrypt.Verify(loginRequest.Password, passwordHash);
-                if (!passwordValid)
+                if (!userFound || !passwordValid)
                 {
+                    RecordLoginFailure(remoteIp);
+                    Log.Warning("Login failed for username='" + loginRequest.Username + "' from " + remoteIp + ".");
                     HttpResponseWriter.WriteJson(context, 401, new { error = "Invalid username or password." });
                     return;
                 }
+
+                RecordLoginSuccess(remoteIp);
 
                 string sessionToken = GenerateSessionToken();
                 SqliteCommand insertCommand = connection.CreateCommand();
@@ -78,6 +123,47 @@ namespace Flatline.Routes
             finally
             {
                 connection.Close();
+            }
+        }
+
+        private static bool IsLockedOut(string remoteIp)
+        {
+            lock (s_LoginAttemptsLock)
+            {
+                LoginAttemptTracker tracker;
+                if (!s_LoginAttempts.TryGetValue(remoteIp, out tracker))
+                {
+                    return false;
+                }
+                return tracker.LockedUntilUtc > DateTime.UtcNow;
+            }
+        }
+
+        private static void RecordLoginFailure(string remoteIp)
+        {
+            lock (s_LoginAttemptsLock)
+            {
+                LoginAttemptTracker tracker;
+                if (!s_LoginAttempts.TryGetValue(remoteIp, out tracker))
+                {
+                    tracker = new LoginAttemptTracker();
+                    s_LoginAttempts[remoteIp] = tracker;
+                }
+                tracker.ConsecutiveFailures = tracker.ConsecutiveFailures + 1;
+                if (tracker.ConsecutiveFailures >= LoginFailuresBeforeLockout)
+                {
+                    tracker.LockedUntilUtc = DateTime.UtcNow.AddSeconds(LoginLockoutSeconds);
+                    tracker.ConsecutiveFailures = 0;
+                    Log.Warning("Locking out " + remoteIp + " for " + LoginLockoutSeconds + "s after repeated login failures.");
+                }
+            }
+        }
+
+        private static void RecordLoginSuccess(string remoteIp)
+        {
+            lock (s_LoginAttemptsLock)
+            {
+                s_LoginAttempts.Remove(remoteIp);
             }
         }
 

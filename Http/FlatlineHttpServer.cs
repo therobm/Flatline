@@ -112,6 +112,20 @@ namespace Flatline.Http
         {
             ConnectionState state = (ConnectionState)stateObject;
             TcpClient client = state.Client;
+            string remoteIp = "";
+            try
+            {
+                IPEndPoint remoteEndPoint = client.Client.RemoteEndPoint as IPEndPoint;
+                if (remoteEndPoint != null)
+                {
+                    remoteIp = remoteEndPoint.Address.ToString();
+                }
+            }
+            catch (Exception)
+            {
+                /* RemoteEndPoint can throw if the socket is already disposed.
+                 * Leave remoteIp empty in that case. */
+            }
             try
             {
                 client.ReceiveTimeout = KeepAliveIdleTimeoutMs;
@@ -188,7 +202,7 @@ namespace Flatline.Http
                  */
                 for (;;)
                 {
-                    bool shouldContinue = DispatchRequest(networkStream, state.UseTls);
+                    bool shouldContinue = DispatchRequest(networkStream, state.UseTls, remoteIp);
                     if (!shouldContinue)
                     {
                         break;
@@ -221,7 +235,7 @@ namespace Flatline.Http
          * Reads one request, dispatches it, writes one response. Returns true if the
          * connection should stay open for the next request, false otherwise.
          */
-        private static bool DispatchRequest(Stream networkStream, bool isHttps)
+        private static bool DispatchRequest(Stream networkStream, bool isHttps, string remoteIp)
         {
             string method = "?";
             string path = "?";
@@ -252,6 +266,7 @@ namespace Flatline.Http
                 FlatlineHttpContext context = new FlatlineHttpContext();
                 context.Request = request;
                 context.IsHttps = isHttps;
+                context.RemoteIpAddress = remoteIp;
 
                 HttpRouter.Route(context);
                 statusCode = context.Response.StatusCode;
