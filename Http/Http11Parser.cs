@@ -165,7 +165,11 @@ namespace Flatline.Http
                     {
                         return null;
                     }
-                    return Encoding.ASCII.GetString(lineBuffer.ToArray());
+                    /* Decode as Latin1 per RFC 7230: header field values are
+                     * legacy ISO-8859-1, and Latin1 is the only single-byte
+                     * encoding that round-trips every byte without loss.
+                     * ASCII silently mangles bytes >= 0x80. */
+                    return Encoding.Latin1.GetString(lineBuffer.ToArray());
                 }
                 if (previousByte == '\r' && currentByte == '\n')
                 {
@@ -175,7 +179,7 @@ namespace Flatline.Http
                     {
                         length = 0;
                     }
-                    return Encoding.ASCII.GetString(bytes, 0, length);
+                    return Encoding.Latin1.GetString(bytes, 0, length);
                 }
                 if (lineBuffer.Length >= MaxLineLength)
                 {
