@@ -6,13 +6,13 @@ namespace Flatline.Http
 {
     public static class Http11Parser
     {
-        private const int MaxLineLength = 8192;
+        public const int MaxLineLength = 8192;
         private const int MaxHeaderCount = 100;
         private const int MaxBodyLength = 16 * 1024 * 1024;
 
-        public static FlatlineHttpRequest ReadRequest(Stream networkStream)
+        public static FlatlineHttpRequest ReadRequest(Stream networkStream, byte[] lineBuffer)
         {
-            string requestLine = ReadLine(networkStream);
+            string requestLine = ReadLine(networkStream, lineBuffer);
             if (requestLine == null)
             {
                 return null;
@@ -23,7 +23,7 @@ namespace Flatline.Http
 
             for (int headerIndex = 0; headerIndex < MaxHeaderCount; headerIndex++)
             {
-                string headerLine = ReadLine(networkStream);
+                string headerLine = ReadLine(networkStream, lineBuffer);
                 if (headerLine == null)
                 {
                     return null;
@@ -152,40 +152,43 @@ namespace Flatline.Http
             }
         }
 
-        private static string ReadLine(Stream networkStream)
+        private static string ReadLine(Stream networkStream, byte[] lineBuffer)
         {
-            MemoryStream lineBuffer = new MemoryStream();
+            /* Writes into the caller's reusable byte[] (allocated once per
+             * connection in FlatlineHttpServer.HandleConnection) so each header
+             * line stops minting a fresh MemoryStream + ToArray() copy.
+             * Decoded as Latin1 per RFC 7230 (header field values are legacy
+             * ISO-8859-1; Latin1 is the only single-byte encoding that
+             * round-trips every byte without loss). */
+            int bufferLength = lineBuffer.Length;
+            int writeIndex = 0;
             int previousByte = -1;
             for (;;)
             {
                 int currentByte = networkStream.ReadByte();
                 if (currentByte == -1)
                 {
-                    if (lineBuffer.Length == 0)
+                    if (writeIndex == 0)
                     {
                         return null;
                     }
-                    /* Decode as Latin1 per RFC 7230: header field values are
-                     * legacy ISO-8859-1, and Latin1 is the only single-byte
-                     * encoding that round-trips every byte without loss.
-                     * ASCII silently mangles bytes >= 0x80. */
-                    return Encoding.Latin1.GetString(lineBuffer.ToArray());
+                    return Encoding.Latin1.GetString(lineBuffer, 0, writeIndex);
                 }
                 if (previousByte == '\r' && currentByte == '\n')
                 {
-                    byte[] bytes = lineBuffer.ToArray();
-                    int length = bytes.Length - 1;
+                    int length = writeIndex - 1;
                     if (length < 0)
                     {
                         length = 0;
                     }
-                    return Encoding.Latin1.GetString(bytes, 0, length);
+                    return Encoding.Latin1.GetString(lineBuffer, 0, length);
                 }
-                if (lineBuffer.Length >= MaxLineLength)
+                if (writeIndex >= bufferLength)
                 {
                     throw new InvalidOperationException("Header line exceeds maximum length.");
                 }
-                lineBuffer.WriteByte((byte)currentByte);
+                lineBuffer[writeIndex] = (byte)currentByte;
+                writeIndex++;
                 previousByte = currentByte;
             }
         }

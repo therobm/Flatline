@@ -200,6 +200,11 @@ namespace Flatline.Http
                 BufferedStream bufferedStream = new BufferedStream(networkStream, 8192);
                 networkStream = bufferedStream;
 
+                /* Allocated once per connection and reused for every request
+                 * line and header line on this keep-alive connection, so the
+                 * parser stops minting a fresh MemoryStream per line. */
+                byte[] lineBuffer = new byte[Http11Parser.MaxLineLength];
+
                 /*
                  * HTTP/1.1 keep-alive loop. Each iteration reads one request and writes
                  * one response. The loop ends when:
@@ -210,7 +215,7 @@ namespace Flatline.Http
                  */
                 for (;;)
                 {
-                    bool shouldContinue = DispatchRequest(networkStream, state.UseTls, remoteIp);
+                    bool shouldContinue = DispatchRequest(networkStream, state.UseTls, remoteIp, lineBuffer);
                     if (!shouldContinue)
                     {
                         break;
@@ -242,14 +247,14 @@ namespace Flatline.Http
          * Reads one request, dispatches it, writes one response. Returns true if the
          * connection should stay open for the next request, false otherwise.
          */
-        private static bool DispatchRequest(Stream networkStream, bool isHttps, string remoteIp)
+        private static bool DispatchRequest(Stream networkStream, bool isHttps, string remoteIp, byte[] lineBuffer)
         {
             string method = "?";
             string path = "?";
             int statusCode = 0;
             try
             {
-                FlatlineHttpRequest request = Http11Parser.ReadRequest(networkStream);
+                FlatlineHttpRequest request = Http11Parser.ReadRequest(networkStream, lineBuffer);
                 if (request == null)
                 {
                     /* Client closed the connection cleanly between requests. */
