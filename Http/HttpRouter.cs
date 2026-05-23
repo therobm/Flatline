@@ -36,6 +36,17 @@ namespace Flatline.Http
                 ExternalBugRoutes.HandleCreateExternalBug(context);
                 return;
             }
+            if (method == "GET" && path == "/api/external/bugs")
+            {
+                ExternalBugRoutes.HandleListExternalBugs(context);
+                return;
+            }
+            long externalBugId = 0;
+            if (method == "GET" && TryMatchExternalBugId(path, out externalBugId))
+            {
+                ExternalBugRoutes.HandleGetExternalBug(context, externalBugId);
+                return;
+            }
 
             if (method == "GET" && path == "/api/api-keys")
             {
@@ -209,6 +220,22 @@ namespace Flatline.Http
             }
 
             HttpResponseWriter.WriteJson(context, 404, new { error = "Not found" });
+        }
+
+        private static bool TryMatchExternalBugId(string path, out long bugId)
+        {
+            bugId = 0;
+            const string prefix = "/api/external/bugs/";
+            if (!path.StartsWith(prefix))
+            {
+                return false;
+            }
+            string idPart = path.Substring(prefix.Length);
+            if (idPart.Contains('/'))
+            {
+                return false;
+            }
+            return long.TryParse(idPart, out bugId);
         }
 
         private static bool TryMatchRelatedBugId(string subPath, out long relatedBugId)

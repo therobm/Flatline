@@ -46,7 +46,11 @@ namespace Flatline.Routes
                 HttpResponseWriter.WriteJson(context, 401, new { error = "Not authenticated." });
                 return;
             }
+            ListBugs(context);
+        }
 
+        public static void ListBugs(FlatlineHttpContext context)
+        {
             string status = HttpRequestReader.GetQueryValue(context, "status");
             string priority = HttpRequestReader.GetQueryValue(context, "priority");
             string assignedTo = HttpRequestReader.GetQueryValue(context, "assignedTo");
@@ -603,7 +607,7 @@ namespace Flatline.Routes
             sqlBuilder.Append("LEFT JOIN versions fixed_v ON fixed_v.id = b.fixed_in_version_id");
         }
 
-        private static Bug LoadBugById(long id)
+        public static Bug LoadBugById(long id)
         {
             SqliteConnection connection = SqliteConnectionFactory.OpenConnection();
             try
