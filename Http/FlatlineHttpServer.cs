@@ -192,6 +192,14 @@ namespace Flatline.Http
                     networkStream = sslStream;
                 }
 
+                /* Wrap the per-connection stream in a BufferedStream so Http11Parser.ReadLine
+                 * stops driving one syscall (or one TLS-decrypt round-trip) per byte. An 8 KB
+                 * read buffer is plenty for a single HTTP request's headers; writes also pass
+                 * through it but FlatlineHttpResponse.WriteTo already calls Flush() at the end
+                 * of each response, so this does not delay responses. */
+                BufferedStream bufferedStream = new BufferedStream(networkStream, 8192);
+                networkStream = bufferedStream;
+
                 /*
                  * HTTP/1.1 keep-alive loop. Each iteration reads one request and writes
                  * one response. The loop ends when:
@@ -209,10 +217,9 @@ namespace Flatline.Http
                     }
                 }
 
-                if (sslStream != null)
-                {
-                    sslStream.Dispose();
-                }
+                /* BufferedStream.Dispose disposes the underlying stream too, so this also
+                 * tears down the SslStream when TLS was in use. */
+                bufferedStream.Dispose();
             }
             catch (Exception connectionException)
             {
