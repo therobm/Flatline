@@ -127,7 +127,15 @@ async function loadMetadata() {
     const statusPairs = dictionaryToPairs(State.metadata.Statuses);
     const statusFilterCount = statusFilterIds.length;
     for (let statusFilterIndex = 0; statusFilterIndex < statusFilterCount; statusFilterIndex++) {
-        createDropdownFilter(statusFilterIds[statusFilterIndex], "Status", statusPairs);
+        const filterId = statusFilterIds[statusFilterIndex];
+        /* Browse view hides Closed bugs by default; the user can re-check
+         * the Closed option to bring them back. The other status filters
+         * keep every option checked on first paint. */
+        if (filterId === "browseStatusFilter") {
+            createDropdownFilterWithDefaults(filterId, "Status", statusPairs, ["Closed"]);
+        } else {
+            createDropdownFilter(filterId, "Status", statusPairs);
+        }
     }
     const priorityPairs = dictionaryToPairs(State.metadata.Priorities);
     const priorityFilterCount = priorityFilterIds.length;
@@ -333,9 +341,14 @@ function populateAssigneeDropdowns() {
 const DropdownFilters = {};
 
 function createDropdownFilter(containerId, labelPrefix, pairs) {
+    createDropdownFilterWithDefaults(containerId, labelPrefix, pairs, []);
+}
+
+function createDropdownFilterWithDefaults(containerId, labelPrefix, pairs, defaultUncheckedValues) {
     DropdownFilters[containerId] = {
         labelPrefix: labelPrefix,
         pairs: pairs.slice(),
+        defaultUncheckedValues: defaultUncheckedValues.slice(),
         isOpen: false
     };
     renderDropdownFilter(containerId);
@@ -383,7 +396,11 @@ function renderDropdownFilter(containerId) {
         const optionCheckbox = document.createElement("input");
         optionCheckbox.type = "checkbox";
         optionCheckbox.value = pair.value;
-        optionCheckbox.checked = true;
+        let startsChecked = true;
+        if (instance.defaultUncheckedValues && instance.defaultUncheckedValues.indexOf(pair.value) !== -1) {
+            startsChecked = false;
+        }
+        optionCheckbox.checked = startsChecked;
         optionCheckbox.dataset.filterId = containerId;
         optionCheckbox.dataset.role = "option";
         optionCheckbox.addEventListener("change", handleDropdownOptionChange);
