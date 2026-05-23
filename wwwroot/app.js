@@ -13,6 +13,8 @@ const State = {
     activeProjectIdForVersions: 0,
     versionsForActiveProject: [],
     apiKeys: [],
+    browseOffset: 0,
+    browseSelectedIds: {},
     metadata: {
         Statuses: {},
         Priorities: {},
@@ -32,6 +34,142 @@ function escapeHtml(value) {
         .replace(/>/g, "&gt;")
         .replace(/"/g, "&quot;")
         .replace(/'/g, "&#39;");
+}
+
+/* Minimal safe Markdown renderer. HTML-escapes the input first, then
+ * applies a small set of patterns: fenced code blocks, headings,
+ * unordered / ordered lists, paragraph breaks via blank lines, inline
+ * code, bold, italic, and links (http/https/mailto/relative only).
+ * No HTML can survive the initial escape, so nothing the user types
+ * becomes live markup. */
+function renderMarkdownSafe(rawText) {
+    if (rawText === null || rawText === undefined) {
+        return "";
+    }
+    const escaped = escapeHtml(rawText);
+    const lines = escaped.split(/\r?\n/);
+    const lineCount = lines.length;
+
+    const outputParts = [];
+    let lineIndex = 0;
+    while (lineIndex < lineCount) {
+        const currentLine = lines[lineIndex];
+
+        /* Fenced code block: ``` ... ``` (no language hint support). */
+        if (currentLine.trim() === "```") {
+            const codeLines = [];
+            lineIndex++;
+            while (lineIndex < lineCount && lines[lineIndex].trim() !== "```") {
+                codeLines.push(lines[lineIndex]);
+                lineIndex++;
+            }
+            outputParts.push("<pre><code>" + codeLines.join("\n") + "</code></pre>");
+            if (lineIndex < lineCount) {
+                lineIndex++;
+            }
+            continue;
+        }
+
+        /* Blank line: just consume it; paragraph break is implicit
+         * because we close the current paragraph when we see one. */
+        if (currentLine.trim() === "") {
+            lineIndex++;
+            continue;
+        }
+
+        /* Heading. Up to six leading hashes. */
+        const headingMatch = currentLine.match(/^(#{1,6})\s+(.*)$/);
+        if (headingMatch) {
+            const headingLevel = headingMatch[1].length;
+            outputParts.push("<h" + headingLevel + ">" + renderInlineMarkdown(headingMatch[2]) + "</h" + headingLevel + ">");
+            lineIndex++;
+            continue;
+        }
+
+        /* Unordered list: consecutive lines starting with -, * or +. */
+        if (/^[-*+]\s+/.test(currentLine)) {
+            const itemHtml = [];
+            while (lineIndex < lineCount && /^[-*+]\s+/.test(lines[lineIndex])) {
+                const itemBody = lines[lineIndex].replace(/^[-*+]\s+/, "");
+                itemHtml.push("<li>" + renderInlineMarkdown(itemBody) + "</li>");
+                lineIndex++;
+            }
+            outputParts.push("<ul>" + itemHtml.join("") + "</ul>");
+            continue;
+        }
+
+        /* Ordered list: consecutive lines starting with N. */
+        if (/^\d+\.\s+/.test(currentLine)) {
+            const itemHtml = [];
+            while (lineIndex < lineCount && /^\d+\.\s+/.test(lines[lineIndex])) {
+                const itemBody = lines[lineIndex].replace(/^\d+\.\s+/, "");
+                itemHtml.push("<li>" + renderInlineMarkdown(itemBody) + "</li>");
+                lineIndex++;
+            }
+            outputParts.push("<ol>" + itemHtml.join("") + "</ol>");
+            continue;
+        }
+
+        /* Paragraph: gather consecutive non-blank lines and join with <br>. */
+        const paragraphLines = [];
+        while (lineIndex < lineCount && lines[lineIndex].trim() !== "" && !/^(#{1,6})\s+/.test(lines[lineIndex]) && !/^[-*+]\s+/.test(lines[lineIndex]) && !/^\d+\.\s+/.test(lines[lineIndex]) && lines[lineIndex].trim() !== "```") {
+            paragraphLines.push(renderInlineMarkdown(lines[lineIndex]));
+            lineIndex++;
+        }
+        outputParts.push("<p>" + paragraphLines.join("<br>") + "</p>");
+    }
+
+    return outputParts.join("");
+}
+
+function renderInlineMarkdown(escapedText) {
+    /* Inline code first so its contents don't get re-processed for
+     * bold/italic/link tokens. The placeholder is opaque to the next
+     * passes (it contains only a digit and a sentinel) and gets
+     * restored at the end. */
+    const codeSpans = [];
+    let processed = escapedText.replace(/`([^`]+)`/g, function onCode(matchText, codeBody) {
+        const placeholder = "@@FLATLINE_CODE_" + codeSpans.length + "@@";
+        codeSpans.push("<code>" + codeBody + "</code>");
+        return placeholder;
+    });
+
+    /* Links: [text](url). URL must use a safe scheme. */
+    processed = processed.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, function onLink(matchText, linkText, linkUrl) {
+        if (!isSafeUrl(linkUrl)) {
+            return matchText;
+        }
+        return "<a href=\"" + linkUrl + "\" target=\"_blank\" rel=\"noopener noreferrer\">" + linkText + "</a>";
+    });
+
+    /* Bold then italic. Order matters: **x** could otherwise match
+     * twice if italic ran first. */
+    processed = processed.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+    processed = processed.replace(/(^|[^*])\*([^*]+)\*/g, "$1<em>$2</em>");
+    processed = processed.replace(/(^|[^_])_([^_]+)_(?!_)/g, "$1<em>$2</em>");
+
+    /* Restore code placeholders. */
+    const codeSpanCount = codeSpans.length;
+    for (let codeSpanIndex = 0; codeSpanIndex < codeSpanCount; codeSpanIndex++) {
+        processed = processed.replace("@@FLATLINE_CODE_" + codeSpanIndex + "@@", codeSpans[codeSpanIndex]);
+    }
+    return processed;
+}
+
+function isSafeUrl(candidateUrl) {
+    /* Allow http(s), mailto, and same-origin relative paths. Reject
+     * javascript:, data:, vbscript:, file:, etc. */
+    if (candidateUrl.startsWith("/") && !candidateUrl.startsWith("//")) {
+        return true;
+    }
+    if (candidateUrl.startsWith("#")) {
+        return true;
+    }
+    const lower = candidateUrl.toLowerCase();
+    if (lower.startsWith("http://") || lower.startsWith("https://") || lower.startsWith("mailto:")) {
+        return true;
+    }
+    return false;
 }
 
 function formatTimestamp(isoString) {
@@ -690,6 +828,7 @@ async function loadBugSection(config) {
 
     const bugs = await apiRequest("GET", "/api/bugs" + queryString);
     renderBugRows(config.tableBodyId, config.emptyId, bugs);
+    return bugs.length;
 }
 
 function renderBugRows(tableBodyId, emptyId, bugs) {
@@ -697,8 +836,15 @@ function renderBugRows(tableBodyId, emptyId, bugs) {
     const emptyElement = document.getElementById(emptyId);
     tableBody.innerHTML = "";
 
+    /* Browse view gets per-row checkboxes for bulk actions. Other views
+     * (Home, My bugs) keep the unchanged 6-column layout. */
+    const isBrowse = tableBodyId === "browseTbody";
+
     if (bugs.length === 0) {
         emptyElement.classList.remove("hidden");
+        if (isBrowse) {
+            updateBulkToolbar();
+        }
         return;
     }
     emptyElement.classList.add("hidden");
@@ -714,7 +860,17 @@ function renderBugRows(tableBodyId, emptyId, bugs) {
             assigneeText = bug.AssignedToDisplayName;
         }
 
+        let selectionCell = "";
+        if (isBrowse) {
+            let checkedAttr = "";
+            if (State.browseSelectedIds[bug.Id]) {
+                checkedAttr = " checked";
+            }
+            selectionCell = "<td class=\"select-cell\"><input type=\"checkbox\" class=\"browse-row-checkbox\" data-bug-id=\"" + escapeHtml(bug.Id) + "\"" + checkedAttr + "></td>";
+        }
+
         row.innerHTML =
+            selectionCell +
             "<td>" + escapeHtml(bug.Id) + "</td>" +
             "<td>" + escapeHtml(bug.Title) + "</td>" +
             "<td><span class=\"badge badge-status-" + escapeHtml(bug.Status) + "\">" + escapeHtml(statusLabel(bug.Status)) + "</span></td>" +
@@ -724,6 +880,16 @@ function renderBugRows(tableBodyId, emptyId, bugs) {
 
         row.addEventListener("click", handleBugRowClick);
         tableBody.appendChild(row);
+    }
+
+    if (isBrowse) {
+        const rowCheckboxes = tableBody.querySelectorAll(".browse-row-checkbox");
+        const checkboxCount = rowCheckboxes.length;
+        for (let checkboxIndex = 0; checkboxIndex < checkboxCount; checkboxIndex++) {
+            rowCheckboxes[checkboxIndex].addEventListener("click", handleRowCheckboxClick);
+            rowCheckboxes[checkboxIndex].addEventListener("change", handleRowCheckboxChange);
+        }
+        updateBulkToolbar();
     }
 }
 
@@ -795,15 +961,271 @@ async function refreshUserView() {
     await refreshUserAssignedSection();
 }
 
+const BrowsePageSize = 50;
+
 async function loadBrowseSection() {
-    await loadBugSection({
+    const returnedCount = await loadBugSection({
         tableBodyId: "browseTbody",
         emptyId: "browseEmpty",
         statusContainerId: "browseStatusFilter",
         priorityContainerId: "browsePriorityFilter",
         assigneeContainerId: "browseAssigneeFilter",
-        sortSelectId: "browseSortFilter"
+        sortSelectId: "browseSortFilter",
+        extraParams: {
+            limit: String(BrowsePageSize),
+            offset: String(State.browseOffset)
+        }
     });
+    renderBrowsePagination(returnedCount);
+}
+
+/* Reset to page 1 and reload. Used by every Browse filter change so a
+ * user toggling filters doesn't end up stuck on an empty page-5. */
+async function reloadBrowseFromFirstPage() {
+    State.browseOffset = 0;
+    await loadBrowseSection();
+}
+
+function renderBrowsePagination(returnedCount) {
+    const container = document.getElementById("browsePagination");
+    if (!container) {
+        return;
+    }
+    /* Returned count is undefined if loadBugSection short-circuited
+     * because no filters were checked. Treat it as zero. */
+    let lastCount = 0;
+    if (typeof returnedCount === "number") {
+        lastCount = returnedCount;
+    }
+    const offset = State.browseOffset;
+    const pageNumber = Math.floor(offset / BrowsePageSize) + 1;
+    const hasPrev = offset > 0;
+    /* A full page back is our signal that more might exist. If we got
+     * fewer rows than the page size, we're on the last page. */
+    const hasNext = lastCount >= BrowsePageSize;
+
+    /* Hide the control entirely on page 1 when there's no next page —
+     * no point showing "Page 1" with two disabled buttons. */
+    if (!hasPrev && !hasNext) {
+        container.classList.add("hidden");
+        return;
+    }
+    container.classList.remove("hidden");
+
+    document.getElementById("browsePrevButton").disabled = !hasPrev;
+    document.getElementById("browseNextButton").disabled = !hasNext;
+    document.getElementById("browsePageLabel").textContent = "Page " + pageNumber;
+}
+
+function handleBrowsePrevClick() {
+    let newOffset = State.browseOffset - BrowsePageSize;
+    if (newOffset < 0) {
+        newOffset = 0;
+    }
+    State.browseOffset = newOffset;
+    loadBrowseSection();
+}
+
+function handleBrowseNextClick() {
+    State.browseOffset = State.browseOffset + BrowsePageSize;
+    loadBrowseSection();
+}
+
+function clearBrowseSelection() {
+    State.browseSelectedIds = {};
+    const checkbox = document.getElementById("browseSelectAll");
+    if (checkbox) {
+        checkbox.checked = false;
+    }
+    updateBulkToolbar();
+}
+
+async function reloadBrowseAfterFilterChange() {
+    /* A filter change could hide some currently-selected rows, leaving
+     * the selection set with "ghost" ids the user can't see. Clear it
+     * so the bulk toolbar reflects only what's on screen. Also reset
+     * to page 1 so the user doesn't end up stranded on an empty page-5
+     * after narrowing the filter. */
+    clearBrowseSelection();
+    State.browseOffset = 0;
+    await loadBrowseSection();
+}
+
+function selectedBrowseIdCount() {
+    return Object.keys(State.browseSelectedIds).length;
+}
+
+function selectedBrowseIdsArray() {
+    const ids = [];
+    const keys = Object.keys(State.browseSelectedIds);
+    const keyCount = keys.length;
+    for (let keyIndex = 0; keyIndex < keyCount; keyIndex++) {
+        ids.push(Number(keys[keyIndex]));
+    }
+    return ids;
+}
+
+function updateBulkToolbar() {
+    const toolbar = document.getElementById("bulkActionToolbar");
+    const label = document.getElementById("bulkSelectionLabel");
+    if (!toolbar || !label) {
+        return;
+    }
+    const count = selectedBrowseIdCount();
+    label.textContent = count + " selected";
+    if (count === 0) {
+        toolbar.classList.add("hidden");
+    } else {
+        toolbar.classList.remove("hidden");
+    }
+
+    /* Reflect 'all visible rows checked' into the header checkbox. */
+    const selectAll = document.getElementById("browseSelectAll");
+    if (selectAll) {
+        const visibleCheckboxes = document.querySelectorAll(".browse-row-checkbox");
+        const visibleCount = visibleCheckboxes.length;
+        let allChecked = visibleCount > 0;
+        for (let checkboxIndex = 0; checkboxIndex < visibleCount; checkboxIndex++) {
+            if (!visibleCheckboxes[checkboxIndex].checked) {
+                allChecked = false;
+                break;
+            }
+        }
+        selectAll.checked = allChecked;
+    }
+}
+
+function handleRowCheckboxClick(clickEvent) {
+    /* Stop the click from bubbling to the row-click handler that opens
+     * the bug detail. The change event still fires for state updates. */
+    clickEvent.stopPropagation();
+}
+
+function handleRowCheckboxChange(changeEvent) {
+    const checkbox = changeEvent.currentTarget;
+    const bugId = Number(checkbox.dataset.bugId);
+    if (checkbox.checked) {
+        State.browseSelectedIds[bugId] = true;
+    } else {
+        delete State.browseSelectedIds[bugId];
+    }
+    updateBulkToolbar();
+}
+
+function handleSelectAllChange(changeEvent) {
+    const checked = changeEvent.currentTarget.checked;
+    const rowCheckboxes = document.querySelectorAll(".browse-row-checkbox");
+    const checkboxCount = rowCheckboxes.length;
+    for (let checkboxIndex = 0; checkboxIndex < checkboxCount; checkboxIndex++) {
+        const rowCheckbox = rowCheckboxes[checkboxIndex];
+        rowCheckbox.checked = checked;
+        const bugId = Number(rowCheckbox.dataset.bugId);
+        if (checked) {
+            State.browseSelectedIds[bugId] = true;
+        } else {
+            delete State.browseSelectedIds[bugId];
+        }
+    }
+    updateBulkToolbar();
+}
+
+function populateBulkToolbarOptions() {
+    const statusSelect = document.getElementById("bulkStatusSelect");
+    const prioritySelect = document.getElementById("bulkPrioritySelect");
+    const assigneeSelect = document.getElementById("bulkAssigneeSelect");
+    if (!statusSelect || !prioritySelect || !assigneeSelect) {
+        return;
+    }
+
+    /* Status options. Keep '(no change)' as the first entry so the user
+     * has to pick deliberately; same for priority and assignee. */
+    statusSelect.innerHTML = "<option value=\"\">(no change)</option>";
+    const statusKeys = Object.keys(State.metadata.Statuses);
+    const statusKeyCount = statusKeys.length;
+    for (let statusIndex = 0; statusIndex < statusKeyCount; statusIndex++) {
+        const statusKey = statusKeys[statusIndex];
+        const option = document.createElement("option");
+        option.value = statusKey;
+        option.textContent = State.metadata.Statuses[statusKey];
+        statusSelect.appendChild(option);
+    }
+
+    prioritySelect.innerHTML = "<option value=\"\">(no change)</option>";
+    const priorityKeys = Object.keys(State.metadata.Priorities);
+    const priorityKeyCount = priorityKeys.length;
+    for (let priorityIndex = 0; priorityIndex < priorityKeyCount; priorityIndex++) {
+        const priorityKey = priorityKeys[priorityIndex];
+        const option = document.createElement("option");
+        option.value = priorityKey;
+        option.textContent = State.metadata.Priorities[priorityKey];
+        prioritySelect.appendChild(option);
+    }
+
+    assigneeSelect.innerHTML = "<option value=\"\">(no change)</option><option value=\"0\">Unassigned</option>";
+    const userCount = State.users.length;
+    for (let userIndex = 0; userIndex < userCount; userIndex++) {
+        const user = State.users[userIndex];
+        const option = document.createElement("option");
+        option.value = String(user.Id);
+        option.textContent = user.DisplayName + " (" + user.Username + ")";
+        assigneeSelect.appendChild(option);
+    }
+}
+
+async function handleBulkApplyClick() {
+    const errorElement = document.getElementById("bulkActionError");
+    errorElement.textContent = "";
+
+    const ids = selectedBrowseIdsArray();
+    if (ids.length === 0) {
+        return;
+    }
+
+    const statusValue = document.getElementById("bulkStatusSelect").value;
+    const priorityValue = document.getElementById("bulkPrioritySelect").value;
+    const assigneeValue = document.getElementById("bulkAssigneeSelect").value;
+
+    const payload = { Ids: ids };
+    if (statusValue) {
+        payload.Status = statusValue;
+        payload.UpdateStatus = true;
+    }
+    if (priorityValue) {
+        payload.Priority = priorityValue;
+        payload.UpdatePriority = true;
+    }
+    if (assigneeValue !== "") {
+        payload.AssignedTo = Number(assigneeValue);
+        payload.UpdateAssignee = true;
+    }
+
+    if (!payload.UpdateStatus && !payload.UpdatePriority && !payload.UpdateAssignee) {
+        errorElement.textContent = "Pick at least one field to change.";
+        return;
+    }
+
+    try {
+        await apiRequest("PUT", "/api/bugs/bulk", payload);
+        clearBrowseSelection();
+        /* Reset the three select boxes so a subsequent bulk action
+         * starts from a clean (no change) slate. */
+        document.getElementById("bulkStatusSelect").value = "";
+        document.getElementById("bulkPrioritySelect").value = "";
+        document.getElementById("bulkAssigneeSelect").value = "";
+        await loadBrowseSection();
+    } catch (apiError) {
+        errorElement.textContent = apiError.message;
+    }
+}
+
+function handleBulkClearClick() {
+    clearBrowseSelection();
+    /* Untick every row checkbox visible in the current page. */
+    const rowCheckboxes = document.querySelectorAll(".browse-row-checkbox");
+    const checkboxCount = rowCheckboxes.length;
+    for (let checkboxIndex = 0; checkboxIndex < checkboxCount; checkboxIndex++) {
+        rowCheckboxes[checkboxIndex].checked = false;
+    }
 }
 
 function handleBugRowClick(clickEvent) {
@@ -854,8 +1276,36 @@ async function renderBugDetail() {
     document.getElementById("detailBugUpdated").textContent = formatTimestamp(bug.UpdatedAt);
     document.getElementById("detailBugError").textContent = "";
 
+    /* Always start in edit mode when (re)entering a bug. The preview
+     * toggle button manages the swap from here. */
+    showDescriptionEditor();
+
     renderRelatedBugs();
     renderComments();
+}
+
+function showDescriptionEditor() {
+    document.getElementById("detailBugDescription").classList.remove("hidden");
+    document.getElementById("detailBugDescriptionPreview").classList.add("hidden");
+    document.getElementById("detailBugDescriptionPreviewToggle").textContent = "Preview";
+}
+
+function showDescriptionPreview() {
+    const previewElement = document.getElementById("detailBugDescriptionPreview");
+    const sourceText = document.getElementById("detailBugDescription").value;
+    previewElement.innerHTML = renderMarkdownSafe(sourceText);
+    previewElement.classList.remove("hidden");
+    document.getElementById("detailBugDescription").classList.add("hidden");
+    document.getElementById("detailBugDescriptionPreviewToggle").textContent = "Edit";
+}
+
+function handleDescriptionPreviewToggleClick() {
+    const previewElement = document.getElementById("detailBugDescriptionPreview");
+    if (previewElement.classList.contains("hidden")) {
+        showDescriptionPreview();
+    } else {
+        showDescriptionEditor();
+    }
 }
 
 function renderRelatedBugs() {
@@ -1146,7 +1596,7 @@ function renderComments() {
                 "<span class=\"comment-author\">" + escapeHtml(comment.DisplayName) + "</span>" +
                 "<span>" + escapeHtml(formatTimestamp(comment.CreatedAt)) + "</span>" +
             "</div>" +
-            "<div class=\"comment-text\">" + escapeHtml(comment.Text) + "</div>";
+            "<div class=\"comment-text markdown-body\">" + renderMarkdownSafe(comment.Text) + "</div>";
         commentsList.appendChild(commentDiv);
         commentIndex++;
     }
@@ -1330,7 +1780,16 @@ async function handleNavBrowseClick() {
     State.bugDetailReturnTo = "browseView";
     showView("browseView");
     await loadUsers();
-    await loadBrowseSection();
+    /* Populate Bulk toolbar selects from the now-loaded user list +
+     * metadata. Re-running it on every nav is cheap and keeps it in
+     * sync if Settings added/removed a user since last visit. */
+    populateBulkToolbarOptions();
+    /* Going to Browse fresh starts with no selection. */
+    clearBrowseSelection();
+    /* Open Browse fresh at page 1; preserving the previous offset across
+     * a full nav click would surprise a user who navigates back to it
+     * expecting the top of the list. */
+    await reloadBrowseFromFirstPage();
 }
 
 async function handleNavMyBugsClick() {
@@ -2046,10 +2505,15 @@ function attachEventHandlers() {
     document.getElementById("userAssignedPriorityFilter").addEventListener("change", refreshUserAssignedSection);
     document.getElementById("userAssignedIncludeClosed").addEventListener("change", refreshUserAssignedSection);
 
-    document.getElementById("browseStatusFilter").addEventListener("change", loadBrowseSection);
-    document.getElementById("browsePriorityFilter").addEventListener("change", loadBrowseSection);
-    document.getElementById("browseAssigneeFilter").addEventListener("change", loadBrowseSection);
-    document.getElementById("browseSortFilter").addEventListener("change", loadBrowseSection);
+    document.getElementById("browseStatusFilter").addEventListener("change", reloadBrowseAfterFilterChange);
+    document.getElementById("browsePriorityFilter").addEventListener("change", reloadBrowseAfterFilterChange);
+    document.getElementById("browseAssigneeFilter").addEventListener("change", reloadBrowseAfterFilterChange);
+    document.getElementById("browseSortFilter").addEventListener("change", reloadBrowseAfterFilterChange);
+    document.getElementById("browsePrevButton").addEventListener("click", handleBrowsePrevClick);
+    document.getElementById("browseNextButton").addEventListener("click", handleBrowseNextClick);
+    document.getElementById("browseSelectAll").addEventListener("change", handleSelectAllChange);
+    document.getElementById("bulkApplyButton").addEventListener("click", handleBulkApplyClick);
+    document.getElementById("bulkClearButton").addEventListener("click", handleBulkClearClick);
 
     document.getElementById("browseNewBugButton").addEventListener("click", handleNewBugClick);
     document.getElementById("backToListButton").addEventListener("click", handleBackToListClick);
@@ -2057,6 +2521,7 @@ function attachEventHandlers() {
     document.getElementById("detailBugProject").addEventListener("change", handleDetailBugProjectChange);
     document.getElementById("saveBugDetailButton").addEventListener("click", handleSaveBugDetailClick);
     document.getElementById("cancelBugDetailButton").addEventListener("click", handleCancelBugDetailClick);
+    document.getElementById("detailBugDescriptionPreviewToggle").addEventListener("click", handleDescriptionPreviewToggleClick);
 
     document.getElementById("newProjectButton").addEventListener("click", handleNewProjectButtonClick);
     document.getElementById("newProjectForm").addEventListener("submit", handleNewProjectSubmit);

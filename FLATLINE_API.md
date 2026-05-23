@@ -152,6 +152,8 @@ comma-separated lists.
 | `excludeClosed`  | `true`      | If set, drops bugs in `Closed` status.                                |
 | `search`         | string      | Case-insensitive substring match against `Title` (LIKE-escaped).      |
 | `sort`           | string      | One of `priority`, `status`, `updated`. Default: newest created first.|
+| `limit`          | integer     | Max rows in this response. Default `50`, capped at `200`.             |
+| `offset`         | integer     | Rows to skip before returning. Default `0`. Use with `limit` to page. |
 
 ### Examples
 

@@ -196,9 +196,32 @@
                         </select>
                     </label>
                 </div>
+                <div id="bulkActionToolbar" class="bulk-toolbar hidden">
+                    <span id="bulkSelectionLabel" class="bulk-selection-label">0 selected</span>
+                    <label>Status
+                        <select id="bulkStatusSelect">
+                            <option value="">(no change)</option>
+                        </select>
+                    </label>
+                    <label>Priority
+                        <select id="bulkPrioritySelect">
+                            <option value="">(no change)</option>
+                        </select>
+                    </label>
+                    <label>Assignee
+                        <select id="bulkAssigneeSelect">
+                            <option value="">(no change)</option>
+                            <option value="0">Unassigned</option>
+                        </select>
+                    </label>
+                    <button type="button" id="bulkApplyButton">Apply</button>
+                    <button type="button" id="bulkClearButton" class="edit-button">Clear selection</button>
+                    <span id="bulkActionError" class="error-message"></span>
+                </div>
                 <table class="bug-table">
                     <thead>
                         <tr>
+                            <th><input type="checkbox" id="browseSelectAll"></th>
                             <th>#</th>
                             <th>Title</th>
                             <th>Status</th>
@@ -210,6 +233,11 @@
                     <tbody id="browseTbody"></tbody>
                 </table>
                 <div id="browseEmpty" class="empty-message hidden">No bugs found.</div>
+                <div id="browsePagination" class="pagination hidden">
+                    <button type="button" id="browsePrevButton">&larr; Prev</button>
+                    <span id="browsePageLabel">Page 1</span>
+                    <button type="button" id="browseNextButton">Next &rarr;</button>
+                </div>
             </section>
 
             <section id="bugDetailView" class="view hidden">
@@ -250,9 +278,14 @@
                                 </select>
                             </label>
                         </div>
-                        <label>Description
+                        <div class="description-field">
+                            <div class="description-header">
+                                <label for="detailBugDescription">Description</label>
+                                <button type="button" id="detailBugDescriptionPreviewToggle" class="link-button">Preview</button>
+                            </div>
                             <textarea id="detailBugDescription" rows="6"></textarea>
-                        </label>
+                            <div id="detailBugDescriptionPreview" class="markdown-body hidden"></div>
+                        </div>
                         <div class="bug-detail-meta">
                             <div class="bug-detail-meta-item"><span class="bug-detail-meta-label">Reporter</span><span id="detailBugReporter"></span></div>
                             <div class="bug-detail-meta-item"><span class="bug-detail-meta-label">Created</span><span id="detailBugCreated"></span></div>

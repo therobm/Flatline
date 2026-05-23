@@ -990,3 +990,122 @@ table.bug-table td:first-child {
         gap: var(--space-2);
     }
 }
+
+/* Description field with inline Preview/Edit toggle. */
+.description-field {
+    display: flex;
+    flex-direction: column;
+}
+
+.description-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+/* Rendered Markdown body (description preview, comments). The inset
+ * panel matches the rest of the UI; element spacing is just tightened
+ * so paragraphs and lists don't collapse to wall-of-text. */
+.markdown-body {
+    background-color: var(--color-window-bg);
+    border-style: inset;
+    border-width: var(--border-width-bevel);
+    border-color: var(--color-chrome);
+    padding: var(--space-2) var(--space-3);
+    line-height: var(--line-height);
+}
+
+.markdown-body p {
+    margin: 0 0 var(--space-2) 0;
+}
+
+.markdown-body p:last-child {
+    margin-bottom: 0;
+}
+
+.markdown-body h1,
+.markdown-body h2,
+.markdown-body h3,
+.markdown-body h4,
+.markdown-body h5,
+.markdown-body h6 {
+    margin: var(--space-2) 0 var(--space-1) 0;
+    font-weight: var(--font-weight-bold);
+}
+
+.markdown-body ul,
+.markdown-body ol {
+    margin: 0 0 var(--space-2) var(--space-5);
+    padding: 0;
+}
+
+.markdown-body li {
+    margin: 0;
+}
+
+.markdown-body code {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-data);
+    background-color: var(--color-panel-bg);
+    padding: 0 var(--space-1);
+}
+
+.markdown-body pre {
+    background-color: var(--color-panel-bg);
+    border-style: inset;
+    border-width: var(--border-width-bevel);
+    border-color: var(--color-chrome);
+    padding: var(--space-2);
+    margin: 0 0 var(--space-2) 0;
+    overflow-x: auto;
+}
+
+.markdown-body pre code {
+    background-color: transparent;
+    padding: 0;
+}
+
+.markdown-body a {
+    color: var(--color-link);
+}
+
+/* Browse-section pagination footer (Prev / Page N / Next). */
+.pagination {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-2) var(--space-3) var(--space-3) var(--space-3);
+}
+
+.pagination button[disabled] {
+    color: var(--color-text-muted);
+    cursor: default;
+    border-style: outset;
+    opacity: 0.6;
+}
+
+/* Bulk-action toolbar above the Browse table. Only visible when at
+ * least one row is selected. */
+.bulk-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-3);
+    margin: var(--space-3);
+    padding: var(--space-2) var(--space-3);
+    background-color: var(--color-window-bg);
+    border-style: inset;
+    border-width: var(--border-width-bevel);
+    border-color: var(--color-chrome);
+}
+
+.bulk-selection-label {
+    font-weight: var(--font-weight-bold);
+}
+
+/* Compact checkbox column in the Browse table. */
+.bug-table td.select-cell,
+.bug-table th:first-child {
+    width: 2em;
+    text-align: center;
+}
