@@ -10,6 +10,10 @@ namespace Flatline
         public string Name = "";
         public Timer Timer;
         public Action Callback;
+        /* Per-entry lock used by Monitor.TryEnter in OnTimerFired so a long
+         * callback never runs twice in parallel: if a tick fires while the
+         * previous tick is still in progress, the new tick is skipped. */
+        public object RunLock = new object();
     }
 
     /* Server-wide periodic-event scheduler. Holds one Timer per registered
@@ -54,6 +58,15 @@ namespace Flatline
         private static void OnTimerFired(object stateObject)
         {
             PeriodicTaskEntry entry = (PeriodicTaskEntry)stateObject;
+            /* Skip this tick if the previous callback is still running. The
+             * timer will fire again on the next interval; we never queue up
+             * overlapping work. */
+            bool lockTaken = Monitor.TryEnter(entry.RunLock);
+            if (!lockTaken)
+            {
+                Log.Warning("Periodic task '" + entry.Name + "' is still running from a previous tick; skipping this one.");
+                return;
+            }
             try
             {
                 entry.Callback();
@@ -61,6 +74,10 @@ namespace Flatline
             catch (Exception taskException)
             {
                 Log.Exception(taskException, "Periodic task '" + entry.Name + "' threw");
+            }
+            finally
+            {
+                Monitor.Exit(entry.RunLock);
             }
         }
     }
