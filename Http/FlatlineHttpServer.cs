@@ -13,6 +13,7 @@ namespace Flatline.Http
     public class FlatlineHttpServer
     {
         private const int SecECertUnknownHResult = unchecked((int)0x80090327);
+        private const int TlsHandshakeTimeoutMs = 3000;
 
         private TcpListener m_HttpListener;
         private TcpListener m_HttpsListener;
@@ -123,11 +124,32 @@ namespace Flatline.Http
                     sslStream = new SslStream(networkStream, false);
                     try
                     {
-                        sslStream.AuthenticateAsServer(state.ServerCertificate, false, SslProtocols.Tls12 | SslProtocols.Tls13, false);
+                        /*
+                         * Bound the handshake to TlsHandshakeTimeoutMs. A client that
+                         * opens the TCP connection but never sends a ClientHello (or
+                         * trickles bytes) would otherwise hold this dispatch thread
+                         * indefinitely. Using the async overload with a CancellationToken
+                         * cancels the whole handshake, not just a single read.
+                         */
+                        CancellationTokenSource handshakeTimeout = new CancellationTokenSource(TlsHandshakeTimeoutMs);
+                        try
+                        {
+                            SslServerAuthenticationOptions handshakeOptions = new SslServerAuthenticationOptions();
+                            handshakeOptions.ServerCertificate = state.ServerCertificate;
+                            handshakeOptions.ClientCertificateRequired = false;
+                            handshakeOptions.EnabledSslProtocols = SslProtocols.Tls12 | SslProtocols.Tls13;
+                            handshakeOptions.CertificateRevocationCheckMode = X509RevocationMode.NoCheck;
+                            sslStream.AuthenticateAsServerAsync(handshakeOptions, handshakeTimeout.Token).GetAwaiter().GetResult();
+                        }
+                        finally
+                        {
+                            handshakeTimeout.Dispose();
+                        }
                     }
                     catch (Exception tlsException)
                     {
                         bool isSpeculativeProbe = false;
+                        bool isTimeout = false;
                         for (Exception walker = tlsException; walker != null; walker = walker.InnerException)
                         {
                             if (walker.HResult == SecECertUnknownHResult)
@@ -135,8 +157,17 @@ namespace Flatline.Http
                                 isSpeculativeProbe = true;
                                 break;
                             }
+                            if (walker is OperationCanceledException)
+                            {
+                                isTimeout = true;
+                                break;
+                            }
                         }
-                        if (!isSpeculativeProbe)
+                        if (isTimeout)
+                        {
+                            Log.Warning("TLS handshake timed out after " + TlsHandshakeTimeoutMs + "ms; closing connection.");
+                        }
+                        else if (!isSpeculativeProbe)
                         {
                             Log.Warning("TLS handshake failed: " + tlsException.GetType().Name + ": " + tlsException.Message);
                         }
