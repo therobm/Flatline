@@ -23,13 +23,13 @@ namespace Flatline.Http
         private X509Certificate2 m_ServerCertificate;
         private bool m_StopRequested;
 
-        public void Start(int httpPort, int httpsPort, X509Certificate2 serverCertificate)
+        public void Start(IPAddress bindAddress, int httpPort, int httpsPort, X509Certificate2 serverCertificate)
         {
             m_ServerCertificate = serverCertificate;
 
-            m_HttpListener = new TcpListener(IPAddress.Loopback, httpPort);
+            m_HttpListener = new TcpListener(bindAddress, httpPort);
             m_HttpListener.Start();
-            Log.Info("Flatline HTTP listening on http://localhost:" + httpPort + "/");
+            Log.Info("Flatline HTTP listening on http://" + bindAddress + ":" + httpPort + "/");
 
             m_HttpAcceptThread = new Thread(AcceptHttpLoop);
             m_HttpAcceptThread.IsBackground = false;
@@ -37,9 +37,9 @@ namespace Flatline.Http
 
             if (m_ServerCertificate != null)
             {
-                m_HttpsListener = new TcpListener(IPAddress.Loopback, httpsPort);
+                m_HttpsListener = new TcpListener(bindAddress, httpsPort);
                 m_HttpsListener.Start();
-                Log.Info("Flatline HTTPS listening on https://localhost:" + httpsPort + "/");
+                Log.Info("Flatline HTTPS listening on https://" + bindAddress + ":" + httpsPort + "/");
 
                 m_HttpsAcceptThread = new Thread(AcceptHttpsLoop);
                 m_HttpsAcceptThread.IsBackground = false;

@@ -1,6 +1,8 @@
 using System;
 using System.IO;
 using System.Net;
+using System.Net.NetworkInformation;
+using System.Net.Sockets;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using Flatline.Logging;
@@ -90,6 +92,19 @@ namespace Flatline.Http
                 sanBuilder.AddDnsName("localhost");
                 sanBuilder.AddIpAddress(IPAddress.Loopback);
                 sanBuilder.AddIpAddress(IPAddress.IPv6Loopback);
+
+                /* Include every up, non-loopback IPv4 address on the machine so that
+                 * other devices on the LAN can hit this server over HTTPS without
+                 * tripping a "subject alt name doesn't match" cert error. */
+                IPAddress[] lanAddresses = GetLanIPv4Addresses();
+                int lanCount = lanAddresses.Length;
+                for (int lanIndex = 0; lanIndex < lanCount; lanIndex++)
+                {
+                    IPAddress lanAddress = lanAddresses[lanIndex];
+                    sanBuilder.AddIpAddress(lanAddress);
+                    Log.Info("  SAN includes LAN IP " + lanAddress);
+                }
+
                 request.CertificateExtensions.Add(sanBuilder.Build());
 
                 request.CertificateExtensions.Add(new X509BasicConstraintsExtension(false, false, 0, true));
@@ -144,6 +159,42 @@ namespace Flatline.Http
             {
                 store.Close();
             }
+        }
+
+        private static IPAddress[] GetLanIPv4Addresses()
+        {
+            System.Collections.Generic.List<IPAddress> collected = new System.Collections.Generic.List<IPAddress>();
+            NetworkInterface[] interfaces = NetworkInterface.GetAllNetworkInterfaces();
+            int interfaceCount = interfaces.Length;
+            for (int interfaceIndex = 0; interfaceIndex < interfaceCount; interfaceIndex++)
+            {
+                NetworkInterface nic = interfaces[interfaceIndex];
+                if (nic.OperationalStatus != OperationalStatus.Up)
+                {
+                    continue;
+                }
+                if (nic.NetworkInterfaceType == NetworkInterfaceType.Loopback)
+                {
+                    continue;
+                }
+                IPInterfaceProperties properties = nic.GetIPProperties();
+                UnicastIPAddressInformationCollection unicastAddresses = properties.UnicastAddresses;
+                int unicastCount = unicastAddresses.Count;
+                for (int unicastIndex = 0; unicastIndex < unicastCount; unicastIndex++)
+                {
+                    UnicastIPAddressInformation unicastInfo = unicastAddresses[unicastIndex];
+                    if (unicastInfo.Address.AddressFamily != AddressFamily.InterNetwork)
+                    {
+                        continue;
+                    }
+                    if (IPAddress.IsLoopback(unicastInfo.Address))
+                    {
+                        continue;
+                    }
+                    collected.Add(unicastInfo.Address);
+                }
+            }
+            return collected.ToArray();
         }
 
         private static X509Certificate2 FetchFromCurrentUserStore(string thumbprint)

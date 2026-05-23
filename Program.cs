@@ -1,4 +1,6 @@
 using System;
+using System.IO;
+using System.Net;
 using System.Security.Cryptography.X509Certificates;
 using System.Threading;
 using Microsoft.Data.Sqlite;
@@ -10,31 +12,13 @@ namespace Flatline
 {
     public class Program
     {
-        private const int DefaultHttpPort = 5099;
-        private const int DefaultHttpsPort = 5443;
-
         private static ManualResetEvent ShutdownEvent = new ManualResetEvent(false);
 
         public static void Main(string[] args)
         {
-            int httpPort = DefaultHttpPort;
-            int httpsPort = DefaultHttpsPort;
-            if (args.Length > 0)
-            {
-                int parsedHttpPort;
-                if (int.TryParse(args[0], out parsedHttpPort))
-                {
-                    httpPort = parsedHttpPort;
-                }
-            }
-            if (args.Length > 1)
-            {
-                int parsedHttpsPort;
-                if (int.TryParse(args[1], out parsedHttpsPort))
-                {
-                    httpsPort = parsedHttpsPort;
-                }
-            }
+            string configPath = Path.Combine(AppContext.BaseDirectory, "flatline.json");
+            FlatlineConfig config = FlatlineConfig.LoadOrDefault(configPath);
+            IPAddress bindAddress = config.ResolveBindAddress();
 
             Migrations.RunMigrations();
             SeedInitialAdminIfNeeded();
@@ -42,7 +26,7 @@ namespace Flatline
             X509Certificate2 serverCertificate = CertificateProvider.EnsureServerCertificate();
 
             FlatlineHttpServer server = new FlatlineHttpServer();
-            server.Start(httpPort, httpsPort, serverCertificate);
+            server.Start(bindAddress, config.HttpPort, config.HttpsPort, serverCertificate);
 
             Console.CancelKeyPress += OnCancelKeyPress;
             ShutdownEvent.WaitOne();

@@ -1,0 +1,5 @@
+{
+    "HttpPort": 5099,
+    "HttpsPort": 5443,
+    "BindAddress": "0.0.0.0"
+}
