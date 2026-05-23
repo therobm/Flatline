@@ -1,7 +1,6 @@
 using System;
 using System.IO;
 using System.Net;
-using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Threading;
 using Microsoft.Data.Sqlite;
@@ -45,15 +44,6 @@ namespace Flatline
             ShutdownEvent.Set();
         }
 
-        private static string GenerateInitialPassword()
-        {
-            /* 18 random bytes -> 24-char base64 (no padding). Plenty of entropy
-             * for an admin bootstrap password, short enough to type once. */
-            byte[] randomBytes = new byte[18];
-            RandomNumberGenerator.Fill(randomBytes);
-            return Convert.ToBase64String(randomBytes).Replace("+", "-").Replace("/", "_").Replace("=", "");
-        }
-
         private static void SeedInitialAdminIfNeeded()
         {
             SqliteConnection connection = SqliteConnectionFactory.OpenConnection();
@@ -73,9 +63,9 @@ namespace Flatline
                 }
 
                 string defaultUsername = "admin";
+                string defaultPassword = "admin";
                 string defaultDisplayName = "Administrator";
-                string generatedPassword = GenerateInitialPassword();
-                string passwordHash = BCrypt.Net.BCrypt.HashPassword(generatedPassword);
+                string passwordHash = BCrypt.Net.BCrypt.HashPassword(defaultPassword);
                 string nowIso = DateTime.UtcNow.ToString("o");
 
                 SqliteCommand insertCommand = connection.CreateCommand();
@@ -87,18 +77,14 @@ namespace Flatline
                 insertCommand.Parameters.AddWithValue("$created_at", nowIso);
                 insertCommand.ExecuteNonQuery();
 
-                /* The initial admin password is printed directly to stdout and is
-                 * deliberately NOT routed through Log.* — otherwise the daily-rolling
-                 * log file would retain it forever, even after the admin changes the
-                 * password. The operator must capture it from the console on first run. */
+                /* Printed to stdout, not Log.*, so the credentials never land in
+                 * the daily-rolling log file. */
                 Console.WriteLine("------------------------------------------------------------");
                 Console.WriteLine("Flatline: created initial admin user.");
                 Console.WriteLine("  Username: " + defaultUsername);
-                Console.WriteLine("  Password: " + generatedPassword);
-                Console.WriteLine("Save this password now — it is not stored anywhere else and");
-                Console.WriteLine("will not appear in the log file. Change it after first login.");
+                Console.WriteLine("  Password: " + defaultPassword);
                 Console.WriteLine("------------------------------------------------------------");
-                Log.Info("Created initial admin user '" + defaultUsername + "'. Password was printed to stdout once and is not in the log.");
+                Log.Info("Created initial admin user '" + defaultUsername + "'.");
             }
             finally
             {
