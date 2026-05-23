@@ -5,5 +5,6 @@ namespace Flatline.Http
         public FlatlineHttpRequest Request = new FlatlineHttpRequest();
         public FlatlineHttpResponse Response = new FlatlineHttpResponse();
         public bool IsHttps;
+        public string RemoteIpAddress = "";
     }
 }
