@@ -155,7 +155,14 @@ namespace Flatline.Http
             }
             catch (Exception connectionException)
             {
-                Log.Exception(connectionException, "Connection error");
+                if (IsConnectionLifecycleError(connectionException))
+                {
+                    Log.Warning("Connection error: " + connectionException.GetType().Name + ": " + connectionException.Message);
+                }
+                else
+                {
+                    Log.Exception(connectionException, "Connection error");
+                }
             }
             finally
             {
@@ -198,6 +205,11 @@ namespace Flatline.Http
             }
             catch (Exception requestException)
             {
+                if (IsConnectionLifecycleError(requestException))
+                {
+                    Log.Warning("Connection closed before request completed (" + method + " " + path + "): " + requestException.GetType().Name + ": " + requestException.Message);
+                    return;
+                }
                 Log.Exception(requestException, "Unhandled error: " + method + " " + path);
                 try
                 {
@@ -210,6 +222,22 @@ namespace Flatline.Http
                     Log.Exception(writeException, "Failed to write 500 response");
                 }
             }
+        }
+
+        private static bool IsConnectionLifecycleError(Exception exception)
+        {
+            for (Exception walker = exception; walker != null; walker = walker.InnerException)
+            {
+                if (walker is SocketException)
+                {
+                    return true;
+                }
+                if (walker is ObjectDisposedException)
+                {
+                    return true;
+                }
+            }
+            return false;
         }
 
         private class ConnectionState
