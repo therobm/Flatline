@@ -921,8 +921,19 @@ async function handleNewCommentSubmit(submitEvent) {
 }
 
 async function handleNewBugClick() {
-    State.activeBug = null;
     State.bugDetailReturnTo = "browseView";
+    await openNewBugForm();
+}
+
+async function handleSidebarNewBugClick() {
+    /* Keep State.bugDetailReturnTo as set by the last nav click,
+     * so saving the new bug returns to whatever view the user
+     * triggered "+ New bug" from. */
+    await openNewBugForm();
+}
+
+async function openNewBugForm() {
+    State.activeBug = null;
     document.getElementById("bugEditHeading").textContent = "New bug";
     document.getElementById("bugEditSubmit").textContent = "Create bug";
     document.getElementById("bugTitle").value = "";
@@ -1735,6 +1746,7 @@ function attachEventHandlers() {
     document.addEventListener("click", handleDocumentClickForDropdowns);
     document.getElementById("loginForm").addEventListener("submit", handleLoginSubmit);
     document.getElementById("logoutButton").addEventListener("click", handleLogoutClick);
+    document.getElementById("sidebarNewBugButton").addEventListener("click", handleSidebarNewBugClick);
     document.getElementById("navHomeButton").addEventListener("click", handleNavHomeClick);
     document.getElementById("navBrowseButton").addEventListener("click", handleNavBrowseClick);
     document.getElementById("navMyBugsButton").addEventListener("click", handleNavMyBugsClick);

@@ -57,6 +57,36 @@ code {
     border-bottom: var(--border-width) solid var(--color-sidebar-border);
 }
 
+.sidebar-action {
+    padding: var(--space-3) var(--space-5);
+    border-bottom: var(--border-width) solid var(--color-sidebar-border);
+}
+
+.sidebar-action-button {
+    width: 100%;
+    background-color: var(--color-chrome);
+    color: var(--color-text);
+    border-style: outset;
+    border-width: var(--border-width-bevel);
+    border-color: var(--color-chrome);
+    padding: var(--space-1) var(--space-3);
+    font-family: var(--font-sans);
+    font-size: var(--font-size-base);
+    font-weight: var(--font-weight-bold);
+    cursor: pointer;
+    text-align: center;
+    border-radius: var(--radius);
+}
+
+.sidebar-action-button:active {
+    border-style: inset;
+}
+
+.sidebar-action-button:focus {
+    outline: 1px dotted var(--color-text);
+    outline-offset: -4px;
+}
+
 .sidebar-nav {
     flex: 1;
     overflow-y: auto;
