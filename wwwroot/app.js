@@ -34,6 +34,142 @@ function escapeHtml(value) {
         .replace(/'/g, "&#39;");
 }
 
+/* Minimal safe Markdown renderer. HTML-escapes the input first, then
+ * applies a small set of patterns: fenced code blocks, headings,
+ * unordered / ordered lists, paragraph breaks via blank lines, inline
+ * code, bold, italic, and links (http/https/mailto/relative only).
+ * No HTML can survive the initial escape, so nothing the user types
+ * becomes live markup. */
+function renderMarkdownSafe(rawText) {
+    if (rawText === null || rawText === undefined) {
+        return "";
+    }
+    const escaped = escapeHtml(rawText);
+    const lines = escaped.split(/\r?\n/);
+    const lineCount = lines.length;
+
+    const outputParts = [];
+    let lineIndex = 0;
+    while (lineIndex < lineCount) {
+        const currentLine = lines[lineIndex];
+
+        /* Fenced code block: ``` ... ``` (no language hint support). */
+        if (currentLine.trim() === "```") {
+            const codeLines = [];
+            lineIndex++;
+            while (lineIndex < lineCount && lines[lineIndex].trim() !== "```") {
+                codeLines.push(lines[lineIndex]);
+                lineIndex++;
+            }
+            outputParts.push("<pre><code>" + codeLines.join("\n") + "</code></pre>");
+            if (lineIndex < lineCount) {
+                lineIndex++;
+            }
+            continue;
+        }
+
+        /* Blank line: just consume it; paragraph break is implicit
+         * because we close the current paragraph when we see one. */
+        if (currentLine.trim() === "") {
+            lineIndex++;
+            continue;
+        }
+
+        /* Heading. Up to six leading hashes. */
+        const headingMatch = currentLine.match(/^(#{1,6})\s+(.*)$/);
+        if (headingMatch) {
+            const headingLevel = headingMatch[1].length;
+            outputParts.push("<h" + headingLevel + ">" + renderInlineMarkdown(headingMatch[2]) + "</h" + headingLevel + ">");
+            lineIndex++;
+            continue;
+        }
+
+        /* Unordered list: consecutive lines starting with -, * or +. */
+        if (/^[-*+]\s+/.test(currentLine)) {
+            const itemHtml = [];
+            while (lineIndex < lineCount && /^[-*+]\s+/.test(lines[lineIndex])) {
+                const itemBody = lines[lineIndex].replace(/^[-*+]\s+/, "");
+                itemHtml.push("<li>" + renderInlineMarkdown(itemBody) + "</li>");
+                lineIndex++;
+            }
+            outputParts.push("<ul>" + itemHtml.join("") + "</ul>");
+            continue;
+        }
+
+        /* Ordered list: consecutive lines starting with N. */
+        if (/^\d+\.\s+/.test(currentLine)) {
+            const itemHtml = [];
+            while (lineIndex < lineCount && /^\d+\.\s+/.test(lines[lineIndex])) {
+                const itemBody = lines[lineIndex].replace(/^\d+\.\s+/, "");
+                itemHtml.push("<li>" + renderInlineMarkdown(itemBody) + "</li>");
+                lineIndex++;
+            }
+            outputParts.push("<ol>" + itemHtml.join("") + "</ol>");
+            continue;
+        }
+
+        /* Paragraph: gather consecutive non-blank lines and join with <br>. */
+        const paragraphLines = [];
+        while (lineIndex < lineCount && lines[lineIndex].trim() !== "" && !/^(#{1,6})\s+/.test(lines[lineIndex]) && !/^[-*+]\s+/.test(lines[lineIndex]) && !/^\d+\.\s+/.test(lines[lineIndex]) && lines[lineIndex].trim() !== "```") {
+            paragraphLines.push(renderInlineMarkdown(lines[lineIndex]));
+            lineIndex++;
+        }
+        outputParts.push("<p>" + paragraphLines.join("<br>") + "</p>");
+    }
+
+    return outputParts.join("");
+}
+
+function renderInlineMarkdown(escapedText) {
+    /* Inline code first so its contents don't get re-processed for
+     * bold/italic/link tokens. The placeholder is opaque to the next
+     * passes (it contains only a digit and a sentinel) and gets
+     * restored at the end. */
+    const codeSpans = [];
+    let processed = escapedText.replace(/`([^`]+)`/g, function onCode(matchText, codeBody) {
+        const placeholder = "@@FLATLINE_CODE_" + codeSpans.length + "@@";
+        codeSpans.push("<code>" + codeBody + "</code>");
+        return placeholder;
+    });
+
+    /* Links: [text](url). URL must use a safe scheme. */
+    processed = processed.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, function onLink(matchText, linkText, linkUrl) {
+        if (!isSafeUrl(linkUrl)) {
+            return matchText;
+        }
+        return "<a href=\"" + linkUrl + "\" target=\"_blank\" rel=\"noopener noreferrer\">" + linkText + "</a>";
+    });
+
+    /* Bold then italic. Order matters: **x** could otherwise match
+     * twice if italic ran first. */
+    processed = processed.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+    processed = processed.replace(/(^|[^*])\*([^*]+)\*/g, "$1<em>$2</em>");
+    processed = processed.replace(/(^|[^_])_([^_]+)_(?!_)/g, "$1<em>$2</em>");
+
+    /* Restore code placeholders. */
+    const codeSpanCount = codeSpans.length;
+    for (let codeSpanIndex = 0; codeSpanIndex < codeSpanCount; codeSpanIndex++) {
+        processed = processed.replace("@@FLATLINE_CODE_" + codeSpanIndex + "@@", codeSpans[codeSpanIndex]);
+    }
+    return processed;
+}
+
+function isSafeUrl(candidateUrl) {
+    /* Allow http(s), mailto, and same-origin relative paths. Reject
+     * javascript:, data:, vbscript:, file:, etc. */
+    if (candidateUrl.startsWith("/") && !candidateUrl.startsWith("//")) {
+        return true;
+    }
+    if (candidateUrl.startsWith("#")) {
+        return true;
+    }
+    const lower = candidateUrl.toLowerCase();
+    if (lower.startsWith("http://") || lower.startsWith("https://") || lower.startsWith("mailto:")) {
+        return true;
+    }
+    return false;
+}
+
 function formatTimestamp(isoString) {
     if (!isoString) {
         return "";
@@ -854,8 +990,36 @@ async function renderBugDetail() {
     document.getElementById("detailBugUpdated").textContent = formatTimestamp(bug.UpdatedAt);
     document.getElementById("detailBugError").textContent = "";
 
+    /* Always start in edit mode when (re)entering a bug. The preview
+     * toggle button manages the swap from here. */
+    showDescriptionEditor();
+
     renderRelatedBugs();
     renderComments();
+}
+
+function showDescriptionEditor() {
+    document.getElementById("detailBugDescription").classList.remove("hidden");
+    document.getElementById("detailBugDescriptionPreview").classList.add("hidden");
+    document.getElementById("detailBugDescriptionPreviewToggle").textContent = "Preview";
+}
+
+function showDescriptionPreview() {
+    const previewElement = document.getElementById("detailBugDescriptionPreview");
+    const sourceText = document.getElementById("detailBugDescription").value;
+    previewElement.innerHTML = renderMarkdownSafe(sourceText);
+    previewElement.classList.remove("hidden");
+    document.getElementById("detailBugDescription").classList.add("hidden");
+    document.getElementById("detailBugDescriptionPreviewToggle").textContent = "Edit";
+}
+
+function handleDescriptionPreviewToggleClick() {
+    const previewElement = document.getElementById("detailBugDescriptionPreview");
+    if (previewElement.classList.contains("hidden")) {
+        showDescriptionPreview();
+    } else {
+        showDescriptionEditor();
+    }
 }
 
 function renderRelatedBugs() {
@@ -1146,7 +1310,7 @@ function renderComments() {
                 "<span class=\"comment-author\">" + escapeHtml(comment.DisplayName) + "</span>" +
                 "<span>" + escapeHtml(formatTimestamp(comment.CreatedAt)) + "</span>" +
             "</div>" +
-            "<div class=\"comment-text\">" + escapeHtml(comment.Text) + "</div>";
+            "<div class=\"comment-text markdown-body\">" + renderMarkdownSafe(comment.Text) + "</div>";
         commentsList.appendChild(commentDiv);
         commentIndex++;
     }
@@ -2057,6 +2221,7 @@ function attachEventHandlers() {
     document.getElementById("detailBugProject").addEventListener("change", handleDetailBugProjectChange);
     document.getElementById("saveBugDetailButton").addEventListener("click", handleSaveBugDetailClick);
     document.getElementById("cancelBugDetailButton").addEventListener("click", handleCancelBugDetailClick);
+    document.getElementById("detailBugDescriptionPreviewToggle").addEventListener("click", handleDescriptionPreviewToggleClick);
 
     document.getElementById("newProjectButton").addEventListener("click", handleNewProjectButtonClick);
     document.getElementById("newProjectForm").addEventListener("submit", handleNewProjectSubmit);
