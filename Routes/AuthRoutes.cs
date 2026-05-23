@@ -16,6 +16,7 @@ namespace Flatline.Routes
     public static class AuthRoutes
     {
         private const string SessionCookieName = "flatline_session";
+        private const int SessionLifetimeDays = 30;
 
         public static void HandleLogin(FlatlineHttpContext context)
         {
@@ -64,7 +65,7 @@ namespace Flatline.Routes
                 insertCommand.Parameters.AddWithValue("$created_at", DateTime.UtcNow.ToString("o"));
                 insertCommand.ExecuteNonQuery();
 
-                HttpRequestReader.SetCookie(context, SessionCookieName, sessionToken, DateTime.UtcNow.AddDays(30), true, "/");
+                HttpRequestReader.SetCookie(context, SessionCookieName, sessionToken, DateTime.UtcNow.AddDays(SessionLifetimeDays), true, "/");
 
                 User user = new User();
                 user.Id = userId;
@@ -121,12 +122,25 @@ namespace Flatline.Routes
                 return null;
             }
 
+            string expiryThresholdIso = DateTime.UtcNow.AddDays(-SessionLifetimeDays).ToString("o");
+
             SqliteConnection connection = SqliteConnectionFactory.OpenConnection();
             try
             {
+                /* Opportunistically prune any session rows that are now older than
+                 * the lifetime. Cheap on a small sessions table, and means we
+                 * don't need a separate sweep job. */
+                SqliteCommand pruneCommand = connection.CreateCommand();
+                pruneCommand.CommandText = "DELETE FROM sessions WHERE created_at < $expiry_threshold;";
+                pruneCommand.Parameters.AddWithValue("$expiry_threshold", expiryThresholdIso);
+                pruneCommand.ExecuteNonQuery();
+
                 SqliteCommand selectCommand = connection.CreateCommand();
-                selectCommand.CommandText = "SELECT u.id, u.username, u.display_name, u.is_admin, u.created_at FROM sessions s INNER JOIN users u ON u.id = s.user_id WHERE s.token = $token;";
+                selectCommand.CommandText = "SELECT u.id, u.username, u.display_name, u.is_admin, u.created_at "
+                    + "FROM sessions s INNER JOIN users u ON u.id = s.user_id "
+                    + "WHERE s.token = $token AND s.created_at >= $expiry_threshold;";
                 selectCommand.Parameters.AddWithValue("$token", sessionToken);
+                selectCommand.Parameters.AddWithValue("$expiry_threshold", expiryThresholdIso);
 
                 SqliteDataReader reader = selectCommand.ExecuteReader();
                 if (!reader.Read())
