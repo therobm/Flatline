@@ -44,12 +44,8 @@
                 <div class="bug-section">
                     <h3>New bugs (last 24h)</h3>
                     <div class="filters">
-                        <label>Status
-                            <div class="checkbox-group" id="homeNewStatusFilter"></div>
-                        </label>
-                        <label>Priority
-                            <select id="homeNewPriorityFilter" multiple size="4"></select>
-                        </label>
+                        <div class="checkbox-group" id="homeNewStatusFilter"></div>
+                        <div class="checkbox-group" id="homeNewPriorityFilter"></div>
                     </div>
                     <table class="bug-table">
                         <thead>
@@ -70,12 +66,8 @@
                 <div class="bug-section">
                     <h3>Recently modified (last 24h)</h3>
                     <div class="filters">
-                        <label>Status
-                            <select id="homeModifiedStatusFilter" multiple size="4"></select>
-                        </label>
-                        <label>Priority
-                            <select id="homeModifiedPriorityFilter" multiple size="4"></select>
-                        </label>
+                        <div class="checkbox-group" id="homeModifiedStatusFilter"></div>
+                        <div class="checkbox-group" id="homeModifiedPriorityFilter"></div>
                     </div>
                     <table class="bug-table">
                         <thead>
@@ -96,12 +88,8 @@
                 <div class="bug-section">
                     <h3>Unassigned</h3>
                     <div class="filters">
-                        <label>Status
-                            <select id="homeUnassignedStatusFilter" multiple size="4"></select>
-                        </label>
-                        <label>Priority
-                            <select id="homeUnassignedPriorityFilter" multiple size="4"></select>
-                        </label>
+                        <div class="checkbox-group" id="homeUnassignedStatusFilter"></div>
+                        <div class="checkbox-group" id="homeUnassignedPriorityFilter"></div>
                     </div>
                     <table class="bug-table">
                         <thead>
@@ -126,12 +114,8 @@
                 <div class="bug-section">
                     <h3>Bugs I created</h3>
                     <div class="filters">
-                        <label>Status
-                            <select id="userCreatedStatusFilter" multiple size="4"></select>
-                        </label>
-                        <label>Priority
-                            <select id="userCreatedPriorityFilter" multiple size="4"></select>
-                        </label>
+                        <div class="checkbox-group" id="userCreatedStatusFilter"></div>
+                        <div class="checkbox-group" id="userCreatedPriorityFilter"></div>
                         <label class="checkbox-inline">
                             <input type="checkbox" id="userCreatedIncludeClosed">
                             Include closed
@@ -156,12 +140,8 @@
                 <div class="bug-section">
                     <h3>Bugs assigned to me</h3>
                     <div class="filters">
-                        <label>Status
-                            <select id="userAssignedStatusFilter" multiple size="4"></select>
-                        </label>
-                        <label>Priority
-                            <select id="userAssignedPriorityFilter" multiple size="4"></select>
-                        </label>
+                        <div class="checkbox-group" id="userAssignedStatusFilter"></div>
+                        <div class="checkbox-group" id="userAssignedPriorityFilter"></div>
                         <label class="checkbox-inline">
                             <input type="checkbox" id="userAssignedIncludeClosed">
                             Include closed
@@ -190,15 +170,9 @@
                     <button type="button" id="browseNewBugButton" class="primary-button">New bug</button>
                 </div>
                 <div class="filters">
-                    <label>Status
-                        <select id="browseStatusFilter" multiple size="4"></select>
-                    </label>
-                    <label>Priority
-                        <select id="browsePriorityFilter" multiple size="4"></select>
-                    </label>
-                    <label>Assignee
-                        <select id="browseAssigneeFilter" multiple size="4"></select>
-                    </label>
+                    <div class="checkbox-group" id="browseStatusFilter"></div>
+                    <div class="checkbox-group" id="browsePriorityFilter"></div>
+                    <div class="checkbox-group" id="browseAssigneeFilter"></div>
                     <label>Sort
                         <select id="browseSortFilter">
                             <option value="">Newest first</option>
