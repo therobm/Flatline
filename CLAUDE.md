@@ -9,9 +9,10 @@ Self-hosted bug tracker. .NET 8 with TcpListener, SQLite, vanilla HTML/JS/CSS fr
 - Do not refactor working code unless asked.
 - When fixing a bug, fix the bug — do not rewrite the surrounding code.
 - Ask before deleting or renaming anything that already exists.
-- At the start of each session, pull main and create a fresh branch named after the first task.
+- At the start of each session, pull development and create a fresh branch off it, named after the first task.
 - All work within a session stays on that branch. Commit as you go.
-- When I say it's good, push the branch and create a pull request to main. Do not merge.
+- When I say it's good, push the branch and create a pull request targeting development. Do not merge.
+- master is the release branch — only I merge development into master, on my own schedule. Never open a PR against master.
 
 ## Tech Constraints
 
