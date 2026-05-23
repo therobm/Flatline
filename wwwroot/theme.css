@@ -1,0 +1,127 @@
+/*
+ * Theme: Default (Windows 2000 chrome)
+ *
+ * All visual constants live here as CSS custom properties. style.css references
+ * these and only these — no hardcoded colors, sizes, borders, or font choices
+ * in style.css.
+ *
+ * Future themes override these on :root[data-theme="other-name"].
+ */
+
+:root,
+:root[data-theme="default"] {
+
+    /* Fonts */
+    --font-sans: "Tahoma", "Segoe UI", system-ui, -apple-system, sans-serif;
+    --font-mono: "Consolas", "Cascadia Mono", "Courier New", monospace;
+    --font-size-base: 12px;
+    --font-size-small: 11px;
+    --font-size-data: 12px;
+    --font-size-heading: 13px;
+    --font-size-section-title: 12px;
+    --font-size-title-bar: 11px;
+    --line-height: 1.35;
+    --font-weight-normal: 400;
+    --font-weight-bold: 700;
+
+    /* Spacing (dense) */
+    --space-0: 0;
+    --space-1: 2px;
+    --space-2: 4px;
+    --space-3: 6px;
+    --space-4: 8px;
+    --space-5: 12px;
+    --space-6: 16px;
+    --space-7: 20px;
+    --space-8: 24px;
+
+    /* Sizes */
+    --sidebar-width: 200px;
+    --row-height: 22px;
+    --input-height: 22px;
+    --button-height: 22px;
+    --border-width: 1px;
+    --border-width-bevel: 2px;
+    --radius: 0;
+    --shadow: none;
+
+    /* Chrome (button-face) palette — classic Win2000 */
+    --color-chrome: #c0c0c0;
+    --color-chrome-light: #ffffff;
+    --color-chrome-dark: #808080;
+    --color-chrome-darker: #404040;
+    --color-panel-bg: #d4d0c8;
+    --color-window-bg: #ffffff;
+    --color-app-bg: #c0c0c0;
+
+    /* Sidebar */
+    --color-sidebar-bg: #3c3c3c;
+    --color-sidebar-bg-darker: #2a2a2a;
+    --color-sidebar-bg-hover: #4d4d4d;
+    --color-sidebar-bg-active: #5a5a5a;
+    --color-sidebar-text: #d4d4d4;
+    --color-sidebar-text-muted: #909090;
+    --color-sidebar-text-active: #ffffff;
+    --color-sidebar-border: #1a1a1a;
+    --color-sidebar-group-header-bg: #2a2a2a;
+    --color-sidebar-group-header-text: #b8b8a8;
+
+    /* Window/panel title bar */
+    --color-title-bar-bg: #3a4d6e;
+    --color-title-bar-bg-inactive: #707070;
+    --color-title-bar-text: #ffffff;
+
+    /* Text */
+    --color-text: #1a1a1a;
+    --color-text-muted: #555555;
+    --color-text-faint: #888888;
+    --color-text-disabled: #a0a0a0;
+    --color-link: #2a4d7e;
+    --color-link-hover: #1a3d6e;
+
+    /* Tables */
+    --color-table-row: #ffffff;
+    --color-table-row-alt: #ece9d8;
+    --color-table-row-hover: #d6e0f0;
+    --color-table-cell-border: #c0c0c0;
+    --color-table-header-bg: #d4d0c8;
+    --color-table-header-text: #1a1a1a;
+    --color-table-header-border: #808080;
+
+    /* Form inputs */
+    --color-input-bg: #ffffff;
+    --color-input-text: #1a1a1a;
+    --color-input-border-light: #808080;
+    --color-input-border-dark: #ffffff;
+    --color-input-focus-outline: #3a4d6e;
+    --color-input-disabled-bg: #d4d0c8;
+
+    /* Status (inline colored text) */
+    --color-status-open: #2a6e2a;
+    --color-status-inprogress: #b8860b;
+    --color-status-resolved: #2a4d7e;
+    --color-status-closed: #666666;
+    --color-status-wontfix: #7a3a3a;
+
+    /* Priority (inline colored text) */
+    --color-priority-critical: #a02020;
+    --color-priority-high: #cc6600;
+    --color-priority-normal: #1a1a1a;
+    --color-priority-low: #888888;
+
+    /* Severity accents (general purpose) */
+    --color-amber: #cc6600;
+    --color-red: #a02020;
+    --color-olive: #6b6b3a;
+    --color-slate: #3a4d6e;
+
+    /* Feedback */
+    --color-error: #a02020;
+    --color-error-bg: #f5e0e0;
+    --color-success: #2a6e2a;
+    --color-info: #3a4d6e;
+
+    /* Selection */
+    --color-selection-bg: #3a4d6e;
+    --color-selection-text: #ffffff;
+}

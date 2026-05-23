@@ -181,11 +181,11 @@ function showView(viewId) {
 }
 
 function showHeader(visible) {
-    const headerElement = document.getElementById("appHeader");
+    const sidebarElement = document.getElementById("appSidebar");
     if (visible) {
-        headerElement.classList.remove("hidden");
+        sidebarElement.classList.remove("hidden");
     } else {
-        headerElement.classList.add("hidden");
+        sidebarElement.classList.add("hidden");
     }
 }
 
@@ -1013,13 +1013,60 @@ async function returnFromBugDetail() {
     await refreshHomeView();
 }
 
+function setActiveSidebarItem(itemId) {
+    const items = document.querySelectorAll(".sidebar-item");
+    const itemCount = items.length;
+    for (let itemIndex = 0; itemIndex < itemCount; itemIndex++) {
+        items[itemIndex].classList.remove("active");
+    }
+    const target = document.getElementById(itemId);
+    if (target) {
+        target.classList.add("active");
+    }
+}
+
+function handleSidebarGroupHeaderClick(clickEvent) {
+    const header = clickEvent.currentTarget;
+    const group = header.parentElement;
+    group.classList.toggle("collapsed");
+}
+
+function applyStoredTheme() {
+    let stored = "default";
+    try {
+        const saved = window.localStorage.getItem("flatline-theme");
+        if (saved) {
+            stored = saved;
+        }
+    } catch (storageError) {
+        stored = "default";
+    }
+    document.documentElement.setAttribute("data-theme", stored);
+    const selector = document.getElementById("themeSelector");
+    if (selector) {
+        selector.value = stored;
+    }
+}
+
+function handleThemeChange(changeEvent) {
+    const value = changeEvent.currentTarget.value;
+    document.documentElement.setAttribute("data-theme", value);
+    try {
+        window.localStorage.setItem("flatline-theme", value);
+    } catch (storageError) {
+        // ignore — theme just won't persist
+    }
+}
+
 async function handleNavHomeClick() {
+    setActiveSidebarItem("navHomeButton");
     State.bugDetailReturnTo = "homeView";
     showView("homeView");
     await refreshHomeView();
 }
 
 async function handleNavBrowseClick() {
+    setActiveSidebarItem("navBrowseButton");
     State.bugDetailReturnTo = "browseView";
     showView("browseView");
     await loadUsers();
@@ -1027,12 +1074,14 @@ async function handleNavBrowseClick() {
 }
 
 async function handleNavMyBugsClick() {
+    setActiveSidebarItem("navMyBugsButton");
     State.bugDetailReturnTo = "userView";
     showView("userView");
     await refreshUserView();
 }
 
 async function handleNavSettingsClick() {
+    setActiveSidebarItem("navSettingsButton");
     showView("settingsView");
     document.getElementById("newUserPanel").classList.add("hidden");
     document.getElementById("editUserPanel").classList.add("hidden");
@@ -1656,17 +1705,18 @@ async function handleNewUserSubmit(submitEvent) {
 
 async function onLoggedIn() {
     document.getElementById("currentUserLabel").textContent = State.currentUser.DisplayName;
-    const settingsButton = document.getElementById("navSettingsButton");
+    const adminGroup = document.getElementById("sidebarAdminGroup");
     if (State.currentUser.IsAdmin) {
-        settingsButton.classList.remove("hidden");
+        adminGroup.classList.remove("hidden");
     } else {
-        settingsButton.classList.add("hidden");
+        adminGroup.classList.add("hidden");
     }
     showHeader(true);
     await loadMetadata();
     await loadUsers();
     State.bugDetailReturnTo = "homeView";
     showView("homeView");
+    setActiveSidebarItem("navHomeButton");
     await refreshHomeView();
 }
 
@@ -1689,6 +1739,17 @@ function attachEventHandlers() {
     document.getElementById("navBrowseButton").addEventListener("click", handleNavBrowseClick);
     document.getElementById("navMyBugsButton").addEventListener("click", handleNavMyBugsClick);
     document.getElementById("navSettingsButton").addEventListener("click", handleNavSettingsClick);
+
+    const groupHeaders = document.querySelectorAll(".sidebar-group-header");
+    const groupHeaderCount = groupHeaders.length;
+    for (let groupHeaderIndex = 0; groupHeaderIndex < groupHeaderCount; groupHeaderIndex++) {
+        groupHeaders[groupHeaderIndex].addEventListener("click", handleSidebarGroupHeaderClick);
+    }
+
+    const themeSelector = document.getElementById("themeSelector");
+    if (themeSelector) {
+        themeSelector.addEventListener("change", handleThemeChange);
+    }
 
     document.getElementById("homeNewStatusFilter").addEventListener("change", refreshHomeNewSection);
     document.getElementById("homeNewPriorityFilter").addEventListener("change", refreshHomeNewSection);
@@ -1741,6 +1802,7 @@ function attachEventHandlers() {
 }
 
 document.addEventListener("DOMContentLoaded", function onReady() {
+    applyStoredTheme();
     attachEventHandlers();
     bootstrap();
 });
