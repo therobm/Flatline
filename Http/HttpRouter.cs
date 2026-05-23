@@ -47,6 +47,11 @@ namespace Flatline.Http
                 ExternalBugRoutes.HandleGetExternalBug(context, externalBugId);
                 return;
             }
+            if (method == "PUT" && TryMatchExternalBugId(path, out externalBugId))
+            {
+                ExternalBugRoutes.HandleUpdateExternalBugStatus(context, externalBugId);
+                return;
+            }
 
             if (method == "GET" && path == "/api/api-keys")
             {
