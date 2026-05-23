@@ -32,6 +32,13 @@ namespace Flatline.Routes
         private const int LoginFailuresBeforeLockout = 5;
         private const int LoginLockoutSeconds = 60;
 
+        /* Hard cap on the per-IP attempt tracker so a probe from thousands of
+         * distinct source IPs can't grow the dictionary without bound. If the
+         * cap is hit on a new failure, the whole dictionary resets — legitimate
+         * users just re-try with a fresh counter; attackers lose any accrued
+         * lockout state but the dict stays small. */
+        private const int LoginAttemptsMaxEntries = 10000;
+
         /* Used by the rate-limiter and by the constant-time bcrypt path. The
          * dummy hash is generated once per process so the unknown-user branch
          * spends the same ~100ms in BCrypt.Verify as the known-user branch. */
@@ -146,6 +153,13 @@ namespace Flatline.Routes
                 LoginAttemptTracker tracker;
                 if (!s_LoginAttempts.TryGetValue(remoteIp, out tracker))
                 {
+                    /* New IP. If adding this entry would push the dict past
+                     * its cap, wipe it instead and start fresh. */
+                    if (s_LoginAttempts.Count >= LoginAttemptsMaxEntries)
+                    {
+                        Log.Warning("Login-attempt tracker exceeded " + LoginAttemptsMaxEntries + " entries; resetting.");
+                        s_LoginAttempts.Clear();
+                    }
                     tracker = new LoginAttemptTracker();
                     s_LoginAttempts[remoteIp] = tracker;
                 }
@@ -213,14 +227,10 @@ namespace Flatline.Routes
             SqliteConnection connection = SqliteConnectionFactory.OpenConnection();
             try
             {
-                /* Opportunistically prune any session rows that are now older than
-                 * the lifetime. Cheap on a small sessions table, and means we
-                 * don't need a separate sweep job. */
-                SqliteCommand pruneCommand = connection.CreateCommand();
-                pruneCommand.CommandText = "DELETE FROM sessions WHERE created_at < $expiry_threshold;";
-                pruneCommand.Parameters.AddWithValue("$expiry_threshold", expiryThresholdIso);
-                pruneCommand.ExecuteNonQuery();
-
+                /* Expired rows are removed by the PruneExpiredSessions periodic
+                 * task (registered in Program.Main). This query still filters
+                 * by created_at so a not-yet-pruned expired token cannot
+                 * authenticate. */
                 SqliteCommand selectCommand = connection.CreateCommand();
                 selectCommand.CommandText = "SELECT u.id, u.username, u.display_name, u.is_admin, u.created_at "
                     + "FROM sessions s INNER JOIN users u ON u.id = s.user_id "
@@ -255,6 +265,30 @@ namespace Flatline.Routes
             byte[] tokenBytes = new byte[32];
             RandomNumberGenerator.Fill(tokenBytes);
             return Convert.ToBase64String(tokenBytes).Replace("+", "-").Replace("/", "_").Replace("=", "");
+        }
+
+        /* Called by the PeriodicTasks scheduler. Deletes session rows older
+         * than the configured lifetime. Bounded auth queries still reject
+         * expired tokens between sweeps. */
+        public static void PruneExpiredSessions()
+        {
+            string expiryThresholdIso = DateTime.UtcNow.AddDays(-SessionLifetimeDays).ToString("o");
+            SqliteConnection connection = SqliteConnectionFactory.OpenConnection();
+            try
+            {
+                SqliteCommand pruneCommand = connection.CreateCommand();
+                pruneCommand.CommandText = "DELETE FROM sessions WHERE created_at < $expiry_threshold;";
+                pruneCommand.Parameters.AddWithValue("$expiry_threshold", expiryThresholdIso);
+                int pruned = pruneCommand.ExecuteNonQuery();
+                if (pruned > 0)
+                {
+                    Log.Info("Periodic session sweep removed " + pruned + " expired session(s).");
+                }
+            }
+            finally
+            {
+                connection.Close();
+            }
         }
     }
 }
