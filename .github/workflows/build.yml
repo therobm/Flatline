@@ -1,0 +1,57 @@
+name: Build and Release
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Compute version
+        id: version
+        shell: pwsh
+        run: |
+          $date = (Get-Date -Format 'yyyy.MM.dd')
+          $version = "$date.$env:GITHUB_RUN_NUMBER"
+          "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          Write-Host "Version: $version"
+
+      - name: Publish single-file self-contained exe (win-x64)
+        shell: pwsh
+        run: |
+          dotnet publish Flatline.csproj `
+            -c Release `
+            -r win-x64 `
+            --self-contained true `
+            -p:PublishSingleFile=true `
+            -p:IncludeNativeLibrariesForSelfExtract=true `
+            -p:Version=${{ steps.version.outputs.version }} `
+            -o publish
+
+      - name: Stage release artifact
+        shell: pwsh
+        run: |
+          $version = "${{ steps.version.outputs.version }}"
+          New-Item -ItemType Directory -Path artifacts | Out-Null
+          Copy-Item -Path publish/Flatline.exe -Destination "artifacts/Flatline-$version-win-x64.exe"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.version.outputs.version }}
+          name: v${{ steps.version.outputs.version }}
+          files: artifacts/Flatline-${{ steps.version.outputs.version }}-win-x64.exe
+          draft: false
+          prerelease: false
