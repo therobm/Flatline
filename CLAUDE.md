@@ -1,6 +1,6 @@
 # Flatline
 
-Self-hosted bug tracker. .NET 8 with HttpListener, SQLite, vanilla HTML/JS/CSS frontend.
+Self-hosted bug tracker. .NET 8 with TcpListener, SQLite, vanilla HTML/JS/CSS frontend.
 
 ## Standing Orders
 
