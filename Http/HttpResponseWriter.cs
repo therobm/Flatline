@@ -1,4 +1,3 @@
-using System.Text;
 using System.Text.Json;
 
 namespace Flatline.Http
@@ -9,8 +8,11 @@ namespace Flatline.Http
         {
             context.Response.StatusCode = statusCode;
             context.Response.ContentType = "application/json; charset=utf-8";
-            string json = JsonSerializer.Serialize(body, body.GetType(), JsonOptions.Default);
-            context.Response.BodyBytes = Encoding.UTF8.GetBytes(json);
+            /* SerializeToUtf8Bytes writes JSON straight into a UTF-8 byte[] with
+             * a single allocation. The previous Serialize -> string -> GetBytes
+             * path produced two large allocations (string + byte[]) on every
+             * JSON response and a UTF-16 -> UTF-8 transcode step. */
+            context.Response.BodyBytes = JsonSerializer.SerializeToUtf8Bytes(body, body.GetType(), JsonOptions.Default);
         }
 
         public static void WriteEmpty(FlatlineHttpContext context, int statusCode)
