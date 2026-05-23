@@ -77,12 +77,14 @@ namespace Flatline
                 insertCommand.Parameters.AddWithValue("$created_at", nowIso);
                 insertCommand.ExecuteNonQuery();
 
-                Log.Info("------------------------------------------------------------");
-                Log.Info("Flatline: created initial admin user.");
-                Log.Info("  Username: admin");
-                Log.Info("  Password: admin");
-                Log.Info("Change this password immediately after first login.");
-                Log.Info("------------------------------------------------------------");
+                /* Printed to stdout, not Log.*, so the credentials never land in
+                 * the daily-rolling log file. */
+                Console.WriteLine("------------------------------------------------------------");
+                Console.WriteLine("Flatline: created initial admin user.");
+                Console.WriteLine("  Username: " + defaultUsername);
+                Console.WriteLine("  Password: " + defaultPassword);
+                Console.WriteLine("------------------------------------------------------------");
+                Log.Info("Created initial admin user '" + defaultUsername + "'.");
             }
             finally
             {
