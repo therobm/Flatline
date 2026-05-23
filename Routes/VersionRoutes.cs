@@ -36,8 +36,13 @@ namespace Flatline.Routes
                 selectCommand.CommandText = "SELECT id, project_id, name, created_at FROM versions WHERE project_id = $project_id ORDER BY name ASC;";
                 selectCommand.Parameters.AddWithValue("$project_id", projectId);
                 SqliteDataReader reader = selectCommand.ExecuteReader();
-                for (bool hasRow = reader.Read(); hasRow; hasRow = reader.Read())
+                const int maxRows = 100000;
+                for (int rowIndex = 0; rowIndex < maxRows; rowIndex++)
                 {
+                    if (!reader.Read())
+                    {
+                        break;
+                    }
                     ProjectVersion version = new ProjectVersion();
                     version.Id = reader.GetInt64(0);
                     version.ProjectId = reader.GetInt64(1);

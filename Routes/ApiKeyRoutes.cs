@@ -59,8 +59,13 @@ namespace Flatline.Routes
                     + "INNER JOIN users u ON u.id = ak.user_id "
                     + "ORDER BY ak.created_at DESC;";
                 SqliteDataReader reader = selectCommand.ExecuteReader();
-                for (bool hasRow = reader.Read(); hasRow; hasRow = reader.Read())
+                const int maxRows = 100000;
+                for (int rowIndex = 0; rowIndex < maxRows; rowIndex++)
                 {
+                    if (!reader.Read())
+                    {
+                        break;
+                    }
                     ApiKey apiKey = new ApiKey();
                     apiKey.Id = reader.GetInt64(0);
                     apiKey.UserId = reader.GetInt64(1);

@@ -53,8 +53,13 @@ namespace Flatline.Routes
                     + "ORDER BY b.id ASC;";
                 selectCommand.Parameters.AddWithValue("$bug_id", bugId);
                 SqliteDataReader reader = selectCommand.ExecuteReader();
-                for (bool hasRow = reader.Read(); hasRow; hasRow = reader.Read())
+                const int maxRows = 100000;
+                for (int rowIndex = 0; rowIndex < maxRows; rowIndex++)
                 {
+                    if (!reader.Read())
+                    {
+                        break;
+                    }
                     RelatedBugSummary summary = new RelatedBugSummary();
                     summary.Id = reader.GetInt64(0);
                     summary.Title = reader.GetString(1);
