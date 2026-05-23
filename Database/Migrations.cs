@@ -152,12 +152,7 @@ namespace Flatline.Database
                 );
 
                 CREATE INDEX idx_comments_bug_id ON comments(bug_id);
-            ";
-            migrationList.Add(version1);
 
-            MigrationStep version2 = new MigrationStep();
-            version2.Version = 2;
-            version2.Sql = @"
                 CREATE TABLE api_keys (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     user_id INTEGER NOT NULL,
@@ -171,7 +166,7 @@ namespace Flatline.Database
 
                 CREATE INDEX idx_api_keys_user_id ON api_keys(user_id);
             ";
-            migrationList.Add(version2);
+            migrationList.Add(version1);
 
             return migrationList;
         }
