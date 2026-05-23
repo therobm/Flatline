@@ -4,6 +4,12 @@ using Microsoft.Data.Sqlite;
 
 namespace Flatline.Database
 {
+    internal class MigrationStep
+    {
+        public int Version;
+        public string Sql = "";
+    }
+
     public static class Migrations
     {
         public static void RunMigrations()
