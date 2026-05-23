@@ -120,13 +120,15 @@ async function loadMetadata() {
         "browsePriorityFilter"
     ];
 
+    const statusPairs = dictionaryToPairs(State.metadata.Statuses);
     const statusFilterCount = statusFilterIds.length;
     for (let statusFilterIndex = 0; statusFilterIndex < statusFilterCount; statusFilterIndex++) {
-        populateOptionSelect(document.getElementById(statusFilterIds[statusFilterIndex]), State.metadata.Statuses, "All", null);
+        createDropdownFilter(statusFilterIds[statusFilterIndex], "Status", statusPairs);
     }
+    const priorityPairs = dictionaryToPairs(State.metadata.Priorities);
     const priorityFilterCount = priorityFilterIds.length;
     for (let priorityFilterIndex = 0; priorityFilterIndex < priorityFilterCount; priorityFilterIndex++) {
-        populateOptionSelect(document.getElementById(priorityFilterIds[priorityFilterIndex]), State.metadata.Priorities, "All", null);
+        createDropdownFilter(priorityFilterIds[priorityFilterIndex], "Priority", priorityPairs);
     }
 
     populateOptionSelect(document.getElementById("bugStatus"), State.metadata.Statuses, null, State.metadata.DefaultStatus);
@@ -300,17 +302,10 @@ async function handleDetailBugProjectChange() {
 }
 
 function populateAssigneeDropdowns() {
-    const filterAssignee = document.getElementById("browseAssigneeFilter");
+    createDropdownFilter("browseAssigneeFilter", "Assignee", usersToPairs());
+
     const bugAssignee = document.getElementById("bugAssignee");
     const detailAssignee = document.getElementById("detailBugAssignee");
-
-    filterAssignee.innerHTML = "";
-    if (!filterAssignee.multiple) {
-        const allOption = document.createElement("option");
-        allOption.value = "";
-        allOption.textContent = "All";
-        filterAssignee.appendChild(allOption);
-    }
     bugAssignee.innerHTML = '<option value="">Unassigned</option>';
     detailAssignee.innerHTML = '<option value="">Unassigned</option>';
 
@@ -318,11 +313,6 @@ function populateAssigneeDropdowns() {
     for (let userIndex = 0; userIndex < userCount; userIndex++) {
         const user = State.users[userIndex];
         const userLabel = user.DisplayName + " (" + user.Username + ")";
-
-        const filterOption = document.createElement("option");
-        filterOption.value = String(user.Id);
-        filterOption.textContent = userLabel;
-        filterAssignee.appendChild(filterOption);
 
         const editOption = document.createElement("option");
         editOption.value = String(user.Id);
@@ -336,48 +326,283 @@ function populateAssigneeDropdowns() {
     }
 }
 
-function readSelectValue(selectElement) {
-    if (!selectElement.multiple) {
-        return selectElement.value;
+const DropdownFilters = {};
+
+function createDropdownFilter(containerId, labelPrefix, pairs) {
+    DropdownFilters[containerId] = {
+        labelPrefix: labelPrefix,
+        pairs: pairs.slice(),
+        isOpen: false
+    };
+    renderDropdownFilter(containerId);
+}
+
+function renderDropdownFilter(containerId) {
+    const container = document.getElementById(containerId);
+    if (!container) {
+        return;
     }
-    const values = [];
-    const optionCount = selectElement.options.length;
+    const instance = DropdownFilters[containerId];
+
+    container.innerHTML = "";
+    container.classList.add("dropdown-filter");
+
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "dropdown-filter-button";
+    button.dataset.filterId = containerId;
+    button.addEventListener("click", handleDropdownButtonClick);
+    container.appendChild(button);
+
+    const panel = document.createElement("div");
+    panel.className = "dropdown-filter-panel hidden";
+    panel.dataset.filterId = containerId;
+
+    const toggleLink = document.createElement("button");
+    toggleLink.type = "button";
+    toggleLink.className = "dropdown-filter-select-all";
+    toggleLink.dataset.filterId = containerId;
+    toggleLink.addEventListener("click", handleDropdownSelectAllClick);
+    panel.appendChild(toggleLink);
+
+    const divider = document.createElement("div");
+    divider.className = "dropdown-filter-divider";
+    panel.appendChild(divider);
+
+    const sortedPairs = instance.pairs.slice();
+    sortedPairs.sort(compareOptionPairsByLabel);
+    const pairCount = sortedPairs.length;
+    for (let pairIndex = 0; pairIndex < pairCount; pairIndex++) {
+        const pair = sortedPairs[pairIndex];
+        const optionLabel = document.createElement("label");
+        optionLabel.className = "dropdown-filter-option";
+        const optionCheckbox = document.createElement("input");
+        optionCheckbox.type = "checkbox";
+        optionCheckbox.value = pair.value;
+        optionCheckbox.checked = true;
+        optionCheckbox.dataset.filterId = containerId;
+        optionCheckbox.dataset.role = "option";
+        optionCheckbox.addEventListener("change", handleDropdownOptionChange);
+        optionLabel.appendChild(optionCheckbox);
+        optionLabel.appendChild(document.createTextNode(" " + pair.label));
+        panel.appendChild(optionLabel);
+    }
+
+    container.appendChild(panel);
+
+    refreshDropdownFilterButton(containerId);
+    refreshDropdownFilterSelectAllText(containerId);
+}
+
+function refreshDropdownFilterButton(containerId) {
+    const container = document.getElementById(containerId);
+    if (!container) {
+        return;
+    }
+    const instance = DropdownFilters[containerId];
+    const button = container.querySelector(".dropdown-filter-button");
+    if (!button) {
+        return;
+    }
+    const checkedValues = readCheckboxGroup(containerId);
+    const totalCount = instance.pairs.length;
+    let labelText = instance.labelPrefix + ": none";
+    if (checkedValues.length === totalCount && totalCount > 0) {
+        labelText = instance.labelPrefix + ": all";
+    } else if (checkedValues.length > 0) {
+        labelText = instance.labelPrefix + ": " + checkedValues.length + " selected";
+    }
+    button.textContent = labelText;
+}
+
+function refreshDropdownFilterSelectAllText(containerId) {
+    const container = document.getElementById(containerId);
+    if (!container) {
+        return;
+    }
+    const toggleLink = container.querySelector(".dropdown-filter-select-all");
+    if (!toggleLink) {
+        return;
+    }
+    const optionCheckboxes = container.querySelectorAll("input[data-role='option']");
+    const optionCount = optionCheckboxes.length;
+    let allChecked = optionCount > 0;
     for (let optionIndex = 0; optionIndex < optionCount; optionIndex++) {
-        if (selectElement.options[optionIndex].selected && selectElement.options[optionIndex].value !== "") {
-            values.push(selectElement.options[optionIndex].value);
+        if (!optionCheckboxes[optionIndex].checked) {
+            allChecked = false;
+            break;
         }
     }
-    return values.join(",");
+    if (allChecked) {
+        toggleLink.textContent = "Clear all";
+    } else {
+        toggleLink.textContent = "Select all";
+    }
+}
+
+function handleDropdownButtonClick(clickEvent) {
+    const button = clickEvent.currentTarget;
+    const filterId = button.dataset.filterId;
+    const wasOpen = DropdownFilters[filterId].isOpen;
+    closeAllDropdownFilters();
+    if (!wasOpen) {
+        openDropdownFilter(filterId);
+    }
+}
+
+function openDropdownFilter(filterId) {
+    const container = document.getElementById(filterId);
+    if (!container) {
+        return;
+    }
+    const panel = container.querySelector(".dropdown-filter-panel");
+    panel.classList.remove("hidden");
+    DropdownFilters[filterId].isOpen = true;
+}
+
+function closeAllDropdownFilters() {
+    const filterIds = Object.keys(DropdownFilters);
+    const filterCount = filterIds.length;
+    for (let filterIndex = 0; filterIndex < filterCount; filterIndex++) {
+        const filterId = filterIds[filterIndex];
+        const instance = DropdownFilters[filterId];
+        if (!instance.isOpen) {
+            continue;
+        }
+        const container = document.getElementById(filterId);
+        if (!container) {
+            continue;
+        }
+        const panel = container.querySelector(".dropdown-filter-panel");
+        if (panel) {
+            panel.classList.add("hidden");
+        }
+        instance.isOpen = false;
+    }
+}
+
+function handleDropdownSelectAllClick(clickEvent) {
+    const toggleLink = clickEvent.currentTarget;
+    const filterId = toggleLink.dataset.filterId;
+    const container = document.getElementById(filterId);
+    if (!container) {
+        return;
+    }
+    const optionCheckboxes = container.querySelectorAll("input[data-role='option']");
+    const optionCount = optionCheckboxes.length;
+    let allChecked = optionCount > 0;
+    for (let optionIndex = 0; optionIndex < optionCount; optionIndex++) {
+        if (!optionCheckboxes[optionIndex].checked) {
+            allChecked = false;
+            break;
+        }
+    }
+    const targetState = !allChecked;
+    for (let optionIndex = 0; optionIndex < optionCount; optionIndex++) {
+        optionCheckboxes[optionIndex].checked = targetState;
+    }
+    refreshDropdownFilterSelectAllText(filterId);
+    refreshDropdownFilterButton(filterId);
+    dispatchDropdownChangeEvent(filterId);
+}
+
+function handleDropdownOptionChange(changeEvent) {
+    changeEvent.stopPropagation();
+    const filterId = changeEvent.currentTarget.dataset.filterId;
+    refreshDropdownFilterSelectAllText(filterId);
+    refreshDropdownFilterButton(filterId);
+    dispatchDropdownChangeEvent(filterId);
+}
+
+function dispatchDropdownChangeEvent(filterId) {
+    const container = document.getElementById(filterId);
+    if (!container) {
+        return;
+    }
+    const syntheticEvent = new Event("change", { bubbles: true });
+    container.dispatchEvent(syntheticEvent);
+}
+
+function handleDocumentClickForDropdowns(clickEvent) {
+    const filterIds = Object.keys(DropdownFilters);
+    const filterCount = filterIds.length;
+    let clickedInside = false;
+    for (let filterIndex = 0; filterIndex < filterCount; filterIndex++) {
+        const filterId = filterIds[filterIndex];
+        const container = document.getElementById(filterId);
+        if (container && container.contains(clickEvent.target)) {
+            clickedInside = true;
+            break;
+        }
+    }
+    if (!clickedInside) {
+        closeAllDropdownFilters();
+    }
+}
+
+function readCheckboxGroup(containerId) {
+    const container = document.getElementById(containerId);
+    if (!container) {
+        return [];
+    }
+    const checkboxes = container.querySelectorAll("input[type='checkbox'][data-role='option']");
+    const values = [];
+    const checkboxCount = checkboxes.length;
+    for (let checkboxIndex = 0; checkboxIndex < checkboxCount; checkboxIndex++) {
+        if (checkboxes[checkboxIndex].checked) {
+            values.push(checkboxes[checkboxIndex].value);
+        }
+    }
+    return values;
+}
+
+function dictionaryToPairs(dict) {
+    const pairs = [];
+    const keys = Object.keys(dict);
+    const keyCount = keys.length;
+    for (let keyIndex = 0; keyIndex < keyCount; keyIndex++) {
+        const key = keys[keyIndex];
+        pairs.push({ value: key, label: dict[key] });
+    }
+    return pairs;
+}
+
+function usersToPairs() {
+    const pairs = [];
+    const userCount = State.users.length;
+    for (let userIndex = 0; userIndex < userCount; userIndex++) {
+        const user = State.users[userIndex];
+        pairs.push({ value: String(user.Id), label: user.DisplayName + " (" + user.Username + ")" });
+    }
+    return pairs;
 }
 
 async function loadBugSection(config) {
     const queryParts = [];
+    let abortEmpty = false;
 
-    if (config.statusSelectId) {
-        const statusElement = document.getElementById(config.statusSelectId);
-        if (statusElement) {
-            const statusValue = readSelectValue(statusElement);
-            if (statusValue) {
-                queryParts.push("status=" + encodeURIComponent(statusValue));
-            }
+    if (config.statusContainerId) {
+        const statusValues = readCheckboxGroup(config.statusContainerId);
+        if (statusValues.length === 0) {
+            abortEmpty = true;
+        } else {
+            queryParts.push("status=" + encodeURIComponent(statusValues.join(",")));
         }
     }
-    if (config.prioritySelectId) {
-        const priorityElement = document.getElementById(config.prioritySelectId);
-        if (priorityElement) {
-            const priorityValue = readSelectValue(priorityElement);
-            if (priorityValue) {
-                queryParts.push("priority=" + encodeURIComponent(priorityValue));
-            }
+    if (config.priorityContainerId) {
+        const priorityValues = readCheckboxGroup(config.priorityContainerId);
+        if (priorityValues.length === 0) {
+            abortEmpty = true;
+        } else {
+            queryParts.push("priority=" + encodeURIComponent(priorityValues.join(",")));
         }
     }
-    if (config.assigneeSelectId) {
-        const assigneeElement = document.getElementById(config.assigneeSelectId);
-        if (assigneeElement) {
-            const assigneeValue = readSelectValue(assigneeElement);
-            if (assigneeValue) {
-                queryParts.push("assignedTo=" + encodeURIComponent(assigneeValue));
-            }
+    if (config.assigneeContainerId) {
+        const assigneeValues = readCheckboxGroup(config.assigneeContainerId);
+        if (assigneeValues.length === 0) {
+            abortEmpty = true;
+        } else {
+            queryParts.push("assignedTo=" + encodeURIComponent(assigneeValues.join(",")));
         }
     }
     if (config.sortSelectId) {
@@ -385,6 +610,10 @@ async function loadBugSection(config) {
         if (sortElement && sortElement.value) {
             queryParts.push("sort=" + encodeURIComponent(sortElement.value));
         }
+    }
+    if (abortEmpty) {
+        renderBugRows(config.tableBodyId, config.emptyId, []);
+        return;
     }
     if (config.extraParams) {
         const extraKeys = Object.keys(config.extraParams);
@@ -454,8 +683,8 @@ async function refreshHomeNewSection() {
     await loadBugSection({
         tableBodyId: "homeNewTbody",
         emptyId: "homeNewEmpty",
-        statusSelectId: "homeNewStatusFilter",
-        prioritySelectId: "homeNewPriorityFilter",
+        statusContainerId: "homeNewStatusFilter",
+        priorityContainerId: "homeNewPriorityFilter",
         extraParams: { createdSince: buildLast24hIso(), excludeClosed: "true" }
     });
 }
@@ -464,8 +693,8 @@ async function refreshHomeModifiedSection() {
     await loadBugSection({
         tableBodyId: "homeModifiedTbody",
         emptyId: "homeModifiedEmpty",
-        statusSelectId: "homeModifiedStatusFilter",
-        prioritySelectId: "homeModifiedPriorityFilter",
+        statusContainerId: "homeModifiedStatusFilter",
+        priorityContainerId: "homeModifiedPriorityFilter",
         extraParams: { updatedSince: buildLast24hIso(), excludeClosed: "true" }
     });
 }
@@ -474,8 +703,8 @@ async function refreshHomeUnassignedSection() {
     await loadBugSection({
         tableBodyId: "homeUnassignedTbody",
         emptyId: "homeUnassignedEmpty",
-        statusSelectId: "homeUnassignedStatusFilter",
-        prioritySelectId: "homeUnassignedPriorityFilter",
+        statusContainerId: "homeUnassignedStatusFilter",
+        priorityContainerId: "homeUnassignedPriorityFilter",
         extraParams: { unassigned: "true", excludeClosed: "true" }
     });
 }
@@ -490,8 +719,8 @@ async function refreshUserCreatedSection() {
     await loadBugSection({
         tableBodyId: "userCreatedTbody",
         emptyId: "userCreatedEmpty",
-        statusSelectId: "userCreatedStatusFilter",
-        prioritySelectId: "userCreatedPriorityFilter",
+        statusContainerId: "userCreatedStatusFilter",
+        priorityContainerId: "userCreatedPriorityFilter",
         includeClosedCheckboxId: "userCreatedIncludeClosed",
         extraParams: { createdBy: String(State.currentUser.Id) }
     });
@@ -501,8 +730,8 @@ async function refreshUserAssignedSection() {
     await loadBugSection({
         tableBodyId: "userAssignedTbody",
         emptyId: "userAssignedEmpty",
-        statusSelectId: "userAssignedStatusFilter",
-        prioritySelectId: "userAssignedPriorityFilter",
+        statusContainerId: "userAssignedStatusFilter",
+        priorityContainerId: "userAssignedPriorityFilter",
         includeClosedCheckboxId: "userAssignedIncludeClosed",
         extraParams: { assignedTo: String(State.currentUser.Id) }
     });
@@ -517,9 +746,9 @@ async function loadBrowseSection() {
     await loadBugSection({
         tableBodyId: "browseTbody",
         emptyId: "browseEmpty",
-        statusSelectId: "browseStatusFilter",
-        prioritySelectId: "browsePriorityFilter",
-        assigneeSelectId: "browseAssigneeFilter",
+        statusContainerId: "browseStatusFilter",
+        priorityContainerId: "browsePriorityFilter",
+        assigneeContainerId: "browseAssigneeFilter",
         sortSelectId: "browseSortFilter"
     });
 }
@@ -1330,6 +1559,7 @@ async function bootstrap() {
 }
 
 function attachEventHandlers() {
+    document.addEventListener("click", handleDocumentClickForDropdowns);
     document.getElementById("loginForm").addEventListener("submit", handleLoginSubmit);
     document.getElementById("logoutButton").addEventListener("click", handleLogoutClick);
     document.getElementById("navHomeButton").addEventListener("click", handleNavHomeClick);
