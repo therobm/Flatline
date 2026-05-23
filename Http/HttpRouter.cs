@@ -80,6 +80,11 @@ namespace Flatline.Http
                 BugRoutes.HandleCreateBug(context);
                 return;
             }
+            if (method == "PUT" && path == "/api/bugs/bulk")
+            {
+                BugRoutes.HandleBulkUpdateBugs(context);
+                return;
+            }
 
             long bugId = 0;
             string bugSubPath = "";

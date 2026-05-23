@@ -1083,3 +1083,29 @@ table.bug-table td:first-child {
     border-style: outset;
     opacity: 0.6;
 }
+
+/* Bulk-action toolbar above the Browse table. Only visible when at
+ * least one row is selected. */
+.bulk-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-3);
+    margin: var(--space-3);
+    padding: var(--space-2) var(--space-3);
+    background-color: var(--color-window-bg);
+    border-style: inset;
+    border-width: var(--border-width-bevel);
+    border-color: var(--color-chrome);
+}
+
+.bulk-selection-label {
+    font-weight: var(--font-weight-bold);
+}
+
+/* Compact checkbox column in the Browse table. */
+.bug-table td.select-cell,
+.bug-table th:first-child {
+    width: 2em;
+    text-align: center;
+}

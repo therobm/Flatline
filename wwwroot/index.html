@@ -196,9 +196,32 @@
                         </select>
                     </label>
                 </div>
+                <div id="bulkActionToolbar" class="bulk-toolbar hidden">
+                    <span id="bulkSelectionLabel" class="bulk-selection-label">0 selected</span>
+                    <label>Status
+                        <select id="bulkStatusSelect">
+                            <option value="">(no change)</option>
+                        </select>
+                    </label>
+                    <label>Priority
+                        <select id="bulkPrioritySelect">
+                            <option value="">(no change)</option>
+                        </select>
+                    </label>
+                    <label>Assignee
+                        <select id="bulkAssigneeSelect">
+                            <option value="">(no change)</option>
+                            <option value="0">Unassigned</option>
+                        </select>
+                    </label>
+                    <button type="button" id="bulkApplyButton">Apply</button>
+                    <button type="button" id="bulkClearButton" class="edit-button">Clear selection</button>
+                    <span id="bulkActionError" class="error-message"></span>
+                </div>
                 <table class="bug-table">
                     <thead>
                         <tr>
+                            <th><input type="checkbox" id="browseSelectAll"></th>
                             <th>#</th>
                             <th>Title</th>
                             <th>Status</th>
