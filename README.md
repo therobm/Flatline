@@ -1,6 +1,6 @@
 # Flatline
 
-Flatline is a small self-hosted bug tracker built with .NET 8, HttpListener, SQLite, and plain HTML/JS/CSS.
+Flatline is a small self-hosted bug tracker built with .NET 8, TcpListener, SQLite, and plain HTML/JS/CSS.
 
 No frameworks, no ORM, no SPA frontend, no cloud junk, no Docker. Just a single executable, a database file.
 
