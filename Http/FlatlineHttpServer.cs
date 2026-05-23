@@ -14,6 +14,7 @@ namespace Flatline.Http
     {
         private const int SecECertUnknownHResult = unchecked((int)0x80090327);
         private const int TlsHandshakeTimeoutMs = 3000;
+        private const int KeepAliveIdleTimeoutMs = 5000;
 
         private TcpListener m_HttpListener;
         private TcpListener m_HttpsListener;
@@ -113,7 +114,7 @@ namespace Flatline.Http
             TcpClient client = state.Client;
             try
             {
-                client.ReceiveTimeout = 15000;
+                client.ReceiveTimeout = KeepAliveIdleTimeoutMs;
                 client.SendTimeout = 15000;
 
                 Stream networkStream = client.GetStream();
@@ -177,7 +178,22 @@ namespace Flatline.Http
                     networkStream = sslStream;
                 }
 
-                DispatchRequest(networkStream, state.UseTls);
+                /*
+                 * HTTP/1.1 keep-alive loop. Each iteration reads one request and writes
+                 * one response. The loop ends when:
+                 *   - the client sent Connection: close,
+                 *   - the client closed the TCP connection (parser returns null),
+                 *   - the read timeout fires after KeepAliveIdleTimeoutMs of silence,
+                 *   - or an unhandled exception forced a 500 response.
+                 */
+                for (;;)
+                {
+                    bool shouldContinue = DispatchRequest(networkStream, state.UseTls);
+                    if (!shouldContinue)
+                    {
+                        break;
+                    }
+                }
 
                 if (sslStream != null)
                 {
@@ -201,9 +217,12 @@ namespace Flatline.Http
             }
         }
 
-        private static void DispatchRequest(Stream networkStream, bool isHttps)
+        /*
+         * Reads one request, dispatches it, writes one response. Returns true if the
+         * connection should stay open for the next request, false otherwise.
+         */
+        private static bool DispatchRequest(Stream networkStream, bool isHttps)
         {
-            DateTime startTime = DateTime.UtcNow;
             string method = "?";
             string path = "?";
             int statusCode = 0;
@@ -212,10 +231,23 @@ namespace Flatline.Http
                 FlatlineHttpRequest request = Http11Parser.ReadRequest(networkStream);
                 if (request == null)
                 {
-                    return;
+                    /* Client closed the connection cleanly between requests. */
+                    return false;
                 }
-                method = request.Method;
+
+				DateTime startTime = DateTime.UtcNow;
+				method = request.Method;
                 path = request.Path;
+
+                bool clientWantsClose = false;
+                string connectionHeader;
+                if (request.Headers.TryGetValue("Connection", out connectionHeader))
+                {
+                    if (connectionHeader.ToLowerInvariant().Contains("close"))
+                    {
+                        clientWantsClose = true;
+                    }
+                }
 
                 FlatlineHttpContext context = new FlatlineHttpContext();
                 context.Request = request;
@@ -223,7 +255,7 @@ namespace Flatline.Http
 
                 HttpRouter.Route(context);
                 statusCode = context.Response.StatusCode;
-
+                context.Response.KeepAlive = !clientWantsClose;
                 context.Response.WriteTo(networkStream);
 
                 TimeSpan elapsed = DateTime.UtcNow - startTime;
@@ -233,25 +265,35 @@ namespace Flatline.Http
                     scheme = "https";
                 }
                 Log.Info(scheme + " " + method + " " + path + " " + statusCode + " " + elapsed.TotalMilliseconds.ToString("F1") + "ms");
+
+                return !clientWantsClose;
             }
             catch (Exception requestException)
             {
                 if (IsConnectionLifecycleError(requestException))
                 {
-                    Log.Warning("Connection closed before request completed (" + method + " " + path + "): " + requestException.GetType().Name + ": " + requestException.Message);
-                    return;
+                    /* If method/path were never populated, the connection died before any
+                     * request bytes arrived (idle timeout, client disconnect, RST). That's
+                     * expected end-of-life for a keep-alive connection — close silently. */
+                    if (method != "?")
+                    {
+                        Log.Warning("Connection closed mid-request (" + method + " " + path + "): " + requestException.GetType().Name + ": " + requestException.Message);
+                    }
+                    return false;
                 }
                 Log.Exception(requestException, "Unhandled error: " + method + " " + path);
                 try
                 {
                     FlatlineHttpResponse errorResponse = new FlatlineHttpResponse();
                     errorResponse.StatusCode = 500;
+                    errorResponse.KeepAlive = false;
                     errorResponse.WriteTo(networkStream);
                 }
                 catch (Exception writeException)
                 {
                     Log.Exception(writeException, "Failed to write 500 response");
                 }
+                return false;
             }
         }
 
