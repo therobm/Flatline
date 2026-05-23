@@ -785,7 +785,8 @@ async function loadBrowseSection() {
         statusContainerId: "browseStatusFilter",
         priorityContainerId: "browsePriorityFilter",
         assigneeContainerId: "browseAssigneeFilter",
-        sortSelectId: "browseSortFilter"
+        sortSelectId: "browseSortFilter",
+        includeClosedCheckboxId: "browseIncludeClosed"
     });
 }
 
@@ -2033,6 +2034,7 @@ function attachEventHandlers() {
     document.getElementById("browsePriorityFilter").addEventListener("change", loadBrowseSection);
     document.getElementById("browseAssigneeFilter").addEventListener("change", loadBrowseSection);
     document.getElementById("browseSortFilter").addEventListener("change", loadBrowseSection);
+    document.getElementById("browseIncludeClosed").addEventListener("change", loadBrowseSection);
 
     document.getElementById("browseNewBugButton").addEventListener("click", handleNewBugClick);
     document.getElementById("backToListButton").addEventListener("click", handleBackToListClick);
