@@ -1,0 +1,128 @@
+/*
+ * Theme: Default (SGI IRIX-inspired — cool slate)
+ *
+ * All visual constants live here as CSS custom properties. style.css references
+ * these and only these — no hardcoded colors, sizes, borders, or font choices
+ * in style.css.
+ *
+ * Future themes override these on :root[data-theme="other-name"].
+ */
+
+:root,
+:root[data-theme="default"] {
+
+    /* Fonts */
+    --font-sans: "Helvetica Neue", "Helvetica", "Arial", "Liberation Sans", sans-serif;
+    --font-mono: "Consolas", "Cascadia Mono", "Menlo", "DejaVu Sans Mono", monospace;
+    --font-size-base: 12px;
+    --font-size-small: 11px;
+    --font-size-data: 12px;
+    --font-size-heading: 13px;
+    --font-size-section-title: 12px;
+    --font-size-title-bar: 11px;
+    --line-height: 1.35;
+    --font-weight-normal: 400;
+    --font-weight-bold: 700;
+
+    /* Spacing (dense) */
+    --space-0: 0;
+    --space-1: 2px;
+    --space-2: 4px;
+    --space-3: 6px;
+    --space-4: 8px;
+    --space-5: 12px;
+    --space-6: 16px;
+    --space-7: 20px;
+    --space-8: 24px;
+
+    /* Sizes */
+    --sidebar-width: 200px;
+    --row-height: 22px;
+    --input-height: 22px;
+    --button-height: 22px;
+    --border-width: 1px;
+    --border-width-bevel: 2px;
+    --radius: 0;
+    --shadow: none;
+
+    /* Chrome (cool slate) — IRIX-style button face */
+    --color-chrome: #aab4c2;
+    --color-chrome-light: #d8dde6;
+    --color-chrome-dark: #5a6678;
+    --color-chrome-darker: #2c3340;
+    --color-panel-bg: #b8c0cc;
+    --color-window-bg: #f0f3f6;
+    --color-app-bg: #8a96a8;
+
+    /* Sidebar (dark slate) */
+    --color-sidebar-bg: #1c2230;
+    --color-sidebar-bg-darker: #131820;
+    --color-sidebar-bg-hover: #2a3445;
+    --color-sidebar-bg-active: #3a4a60;
+    --color-sidebar-text: #aab8cc;
+    --color-sidebar-text-muted: #6a7488;
+    --color-sidebar-text-active: #ffffff;
+    --color-sidebar-border: #0a0e16;
+    --color-sidebar-group-header-bg: #131820;
+    --color-sidebar-group-header-text: #7a8aa0;
+
+    /* Window/panel title bar (steel blue) */
+    --color-title-bar-bg: #3a5070;
+    --color-title-bar-bg-inactive: #6a7488;
+    --color-title-bar-text: #ffffff;
+
+    /* Text */
+    --color-text: #15181f;
+    --color-text-muted: #4a5566;
+    --color-text-faint: #7a8090;
+    --color-text-disabled: #98a0ac;
+    --color-link: #2a7080;
+    --color-link-hover: #1a5060;
+
+    /* Tables */
+    --color-table-row: #ffffff;
+    --color-table-row-alt: #dfe5ee;
+    --color-table-row-hover: #c8d4e4;
+    --color-table-cell-border: #aab4c2;
+    --color-table-header-bg: #8a96a8;
+    --color-table-header-text: #ffffff;
+    --color-table-header-border: #5a6678;
+
+    /* Form inputs */
+    --color-input-bg: #f0f3f6;
+    --color-input-text: #15181f;
+    --color-input-border-light: #5a6678;
+    --color-input-border-dark: #ffffff;
+    --color-input-focus-outline: #4858a8;
+    --color-input-disabled-bg: #b8c0cc;
+
+    /* Status (inline colored text) */
+    --color-status-open: #3a7060;
+    --color-status-inprogress: #b8800a;
+    --color-status-resolved: #3a5878;
+    --color-status-closed: #5a6068;
+    --color-status-wontfix: #7a4060;
+
+    /* Priority (inline colored text) */
+    --color-priority-critical: #a02830;
+    --color-priority-high: #cc6810;
+    --color-priority-normal: #15181f;
+    --color-priority-low: #7a8090;
+
+    /* Severity accents (general purpose) */
+    --color-teal: #3a8a9a;
+    --color-indigo: #4858a8;
+    --color-amber: #cc6810;
+    --color-red: #a02830;
+    --color-slate: #3a5070;
+
+    /* Feedback */
+    --color-error: #a02830;
+    --color-error-bg: #f0d6da;
+    --color-success: #3a7060;
+    --color-info: #3a8a9a;
+
+    /* Selection */
+    --color-selection-bg: #4858a8;
+    --color-selection-text: #ffffff;
+}

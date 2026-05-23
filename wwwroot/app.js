@@ -181,11 +181,11 @@ function showView(viewId) {
 }
 
 function showHeader(visible) {
-    const headerElement = document.getElementById("appHeader");
+    const sidebarElement = document.getElementById("appSidebar");
     if (visible) {
-        headerElement.classList.remove("hidden");
+        sidebarElement.classList.remove("hidden");
     } else {
-        headerElement.classList.add("hidden");
+        sidebarElement.classList.add("hidden");
     }
 }
 
@@ -303,7 +303,7 @@ async function handleDetailBugProjectChange() {
 }
 
 function populateAssigneeDropdowns() {
-    createDropdownFilter("browseAssigneeFilter", "Assignee", usersToPairs());
+    createDropdownFilter("browseAssigneeFilter", "Assignee", usersAndUnassignedPairs());
 
     const bugAssignee = document.getElementById("bugAssignee");
     const detailAssignee = document.getElementById("detailBugAssignee");
@@ -578,6 +578,20 @@ function usersToPairs() {
     return pairs;
 }
 
+function usersAndUnassignedPairs() {
+    /* Used by the Browse assignee filter so bugs with assigned_to IS NULL
+     * can be included/excluded explicitly via the "(Unassigned)" checkbox.
+     * Value "0" is the sentinel; loadBugSection splits it into the
+     * separate unassigned=true query parameter. */
+    const pairs = [{ value: "0", label: "(Unassigned)" }];
+    const userCount = State.users.length;
+    for (let userIndex = 0; userIndex < userCount; userIndex++) {
+        const user = State.users[userIndex];
+        pairs.push({ value: String(user.Id), label: user.DisplayName + " (" + user.Username + ")" });
+    }
+    return pairs;
+}
+
 async function loadBugSection(config) {
     const queryParts = [];
     let abortEmpty = false;
@@ -603,7 +617,25 @@ async function loadBugSection(config) {
         if (assigneeValues.length === 0) {
             abortEmpty = true;
         } else {
-            queryParts.push("assignedTo=" + encodeURIComponent(assigneeValues.join(",")));
+            /* The "(Unassigned)" checkbox has value "0" — peel it off
+             * and send it as a separate unassigned=true param so the
+             * backend can OR it with the assigned_to IN (...) list. */
+            const userIds = [];
+            let includeUnassigned = false;
+            const assigneeValueCount = assigneeValues.length;
+            for (let assigneeIndex = 0; assigneeIndex < assigneeValueCount; assigneeIndex++) {
+                if (assigneeValues[assigneeIndex] === "0") {
+                    includeUnassigned = true;
+                } else {
+                    userIds.push(assigneeValues[assigneeIndex]);
+                }
+            }
+            if (includeUnassigned) {
+                queryParts.push("unassigned=true");
+            }
+            if (userIds.length > 0) {
+                queryParts.push("assignedTo=" + encodeURIComponent(userIds.join(",")));
+            }
         }
     }
     if (config.sortSelectId) {
@@ -921,8 +953,19 @@ async function handleNewCommentSubmit(submitEvent) {
 }
 
 async function handleNewBugClick() {
-    State.activeBug = null;
     State.bugDetailReturnTo = "browseView";
+    await openNewBugForm();
+}
+
+async function handleSidebarNewBugClick() {
+    /* Keep State.bugDetailReturnTo as set by the last nav click,
+     * so saving the new bug returns to whatever view the user
+     * triggered "+ New bug" from. */
+    await openNewBugForm();
+}
+
+async function openNewBugForm() {
+    State.activeBug = null;
     document.getElementById("bugEditHeading").textContent = "New bug";
     document.getElementById("bugEditSubmit").textContent = "Create bug";
     document.getElementById("bugTitle").value = "";
@@ -1013,13 +1056,60 @@ async function returnFromBugDetail() {
     await refreshHomeView();
 }
 
+function setActiveSidebarItem(itemId) {
+    const items = document.querySelectorAll(".sidebar-item");
+    const itemCount = items.length;
+    for (let itemIndex = 0; itemIndex < itemCount; itemIndex++) {
+        items[itemIndex].classList.remove("active");
+    }
+    const target = document.getElementById(itemId);
+    if (target) {
+        target.classList.add("active");
+    }
+}
+
+function handleSidebarGroupHeaderClick(clickEvent) {
+    const header = clickEvent.currentTarget;
+    const group = header.parentElement;
+    group.classList.toggle("collapsed");
+}
+
+function applyStoredTheme() {
+    let stored = "default";
+    try {
+        const saved = window.localStorage.getItem("flatline-theme");
+        if (saved) {
+            stored = saved;
+        }
+    } catch (storageError) {
+        stored = "default";
+    }
+    document.documentElement.setAttribute("data-theme", stored);
+    const selector = document.getElementById("themeSelector");
+    if (selector) {
+        selector.value = stored;
+    }
+}
+
+function handleThemeChange(changeEvent) {
+    const value = changeEvent.currentTarget.value;
+    document.documentElement.setAttribute("data-theme", value);
+    try {
+        window.localStorage.setItem("flatline-theme", value);
+    } catch (storageError) {
+        // ignore — theme just won't persist
+    }
+}
+
 async function handleNavHomeClick() {
+    setActiveSidebarItem("navHomeButton");
     State.bugDetailReturnTo = "homeView";
     showView("homeView");
     await refreshHomeView();
 }
 
 async function handleNavBrowseClick() {
+    setActiveSidebarItem("navBrowseButton");
     State.bugDetailReturnTo = "browseView";
     showView("browseView");
     await loadUsers();
@@ -1027,12 +1117,14 @@ async function handleNavBrowseClick() {
 }
 
 async function handleNavMyBugsClick() {
+    setActiveSidebarItem("navMyBugsButton");
     State.bugDetailReturnTo = "userView";
     showView("userView");
     await refreshUserView();
 }
 
 async function handleNavSettingsClick() {
+    setActiveSidebarItem("navSettingsButton");
     showView("settingsView");
     document.getElementById("newUserPanel").classList.add("hidden");
     document.getElementById("editUserPanel").classList.add("hidden");
@@ -1656,17 +1748,18 @@ async function handleNewUserSubmit(submitEvent) {
 
 async function onLoggedIn() {
     document.getElementById("currentUserLabel").textContent = State.currentUser.DisplayName;
-    const settingsButton = document.getElementById("navSettingsButton");
+    const adminGroup = document.getElementById("sidebarAdminGroup");
     if (State.currentUser.IsAdmin) {
-        settingsButton.classList.remove("hidden");
+        adminGroup.classList.remove("hidden");
     } else {
-        settingsButton.classList.add("hidden");
+        adminGroup.classList.add("hidden");
     }
     showHeader(true);
     await loadMetadata();
     await loadUsers();
     State.bugDetailReturnTo = "homeView";
     showView("homeView");
+    setActiveSidebarItem("navHomeButton");
     await refreshHomeView();
 }
 
@@ -1685,10 +1778,22 @@ function attachEventHandlers() {
     document.addEventListener("click", handleDocumentClickForDropdowns);
     document.getElementById("loginForm").addEventListener("submit", handleLoginSubmit);
     document.getElementById("logoutButton").addEventListener("click", handleLogoutClick);
+    document.getElementById("sidebarNewBugButton").addEventListener("click", handleSidebarNewBugClick);
     document.getElementById("navHomeButton").addEventListener("click", handleNavHomeClick);
     document.getElementById("navBrowseButton").addEventListener("click", handleNavBrowseClick);
     document.getElementById("navMyBugsButton").addEventListener("click", handleNavMyBugsClick);
     document.getElementById("navSettingsButton").addEventListener("click", handleNavSettingsClick);
+
+    const groupHeaders = document.querySelectorAll(".sidebar-group-header");
+    const groupHeaderCount = groupHeaders.length;
+    for (let groupHeaderIndex = 0; groupHeaderIndex < groupHeaderCount; groupHeaderIndex++) {
+        groupHeaders[groupHeaderIndex].addEventListener("click", handleSidebarGroupHeaderClick);
+    }
+
+    const themeSelector = document.getElementById("themeSelector");
+    if (themeSelector) {
+        themeSelector.addEventListener("change", handleThemeChange);
+    }
 
     document.getElementById("homeNewStatusFilter").addEventListener("change", refreshHomeNewSection);
     document.getElementById("homeNewPriorityFilter").addEventListener("change", refreshHomeNewSection);
@@ -1741,6 +1846,7 @@ function attachEventHandlers() {
 }
 
 document.addEventListener("DOMContentLoaded", function onReady() {
+    applyStoredTheme();
     attachEventHandlers();
     bootstrap();
 });

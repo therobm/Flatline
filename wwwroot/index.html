@@ -4,25 +4,39 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Flatline</title>
+    <link rel="stylesheet" href="theme.css">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div id="app">
-        <header id="appHeader" class="hidden">
-            <div class="header-brand">Flatline</div>
-            <nav class="header-nav">
-                <button type="button" id="navHomeButton" class="nav-button">Home</button>
-                <button type="button" id="navBrowseButton" class="nav-button">Browse</button>
-                <button type="button" id="navMyBugsButton" class="nav-button">My bugs</button>
-                <button type="button" id="navSettingsButton" class="nav-button hidden">Settings</button>
-            </nav>
-            <div class="header-user">
-                <span id="currentUserLabel"></span>
-                <button type="button" id="logoutButton" class="nav-button">Log out</button>
+        <aside id="appSidebar" class="hidden">
+            <div class="sidebar-brand">Flatline</div>
+            <div class="sidebar-action">
+                <button type="button" id="sidebarNewBugButton" class="sidebar-action-button">+ New bug</button>
             </div>
-        </header>
+            <nav class="sidebar-nav">
+                <div class="sidebar-group" data-group="bugs">
+                    <button type="button" class="sidebar-group-header" data-group="bugs">Bugs</button>
+                    <div class="sidebar-group-items">
+                        <button type="button" id="navHomeButton" class="sidebar-item">Home</button>
+                        <button type="button" id="navBrowseButton" class="sidebar-item">Browse</button>
+                        <button type="button" id="navMyBugsButton" class="sidebar-item">My bugs</button>
+                    </div>
+                </div>
+                <div class="sidebar-group hidden" id="sidebarAdminGroup" data-group="admin">
+                    <button type="button" class="sidebar-group-header" data-group="admin">Admin</button>
+                    <div class="sidebar-group-items">
+                        <button type="button" id="navSettingsButton" class="sidebar-item">Settings</button>
+                    </div>
+                </div>
+            </nav>
+            <div class="sidebar-footer">
+                <span id="currentUserLabel"></span>
+                <button type="button" id="logoutButton" class="sidebar-item">Log out</button>
+            </div>
+        </aside>
 
-        <main>
+        <main id="appMain">
             <section id="loginView" class="view hidden">
                 <div class="login-card">
                     <h1>Flatline</h1>
@@ -448,6 +462,17 @@
                             </form>
                         </div>
                     </div>
+                </div>
+
+                <div class="settings-section" id="themeSection">
+                    <div class="settings-section-header">
+                        <h3>Appearance</h3>
+                    </div>
+                    <label>Theme
+                        <select id="themeSelector">
+                            <option value="default">Default (Windows 2000)</option>
+                        </select>
+                    </label>
                 </div>
 
                 <div class="settings-section" id="apiKeyManagementSection">

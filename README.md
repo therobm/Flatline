@@ -4,6 +4,8 @@ Flatline is a small self-hosted bug tracker built with .NET 8, TcpListener, SQLi
 
 No frameworks, no ORM, no SPA frontend, no cloud junk, no Docker. Just a single executable, a database file.
 
+![Flatline home page](Docs/home.png)
+
 ## Why does this exist?
 
 I made this both because I wanted a simple bug tracker without all the extra features, and I also wanted an excuse to see what all the vibe coding buzz was about.  
