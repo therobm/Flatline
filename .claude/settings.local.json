@@ -1,8 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(curl -s -b D:/git/Flatline/cookies.txt \"http://127.0.0.1:5099/api/bugs?sort=priority\")",
-      "PowerShell(Stop-Process -Id 1262 -Force -ErrorAction SilentlyContinue; $proc = Get-Process Flatline -ErrorAction SilentlyContinue; if \\($proc\\) { Stop-Process -Id $proc.Id -Force }; Start-Sleep -Seconds 2; Remove-Item D:\\\\git\\\\Flatline\\\\flatline.db, D:\\\\git\\\\Flatline\\\\flatline.db-shm, D:\\\\git\\\\Flatline\\\\flatline.db-wal, D:\\\\git\\\\Flatline\\\\cookies.txt, D:\\\\git\\\\Flatline\\\\run.log -ErrorAction SilentlyContinue; \"cleaned\")"
-    ]
-  }
-}
