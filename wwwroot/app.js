@@ -303,7 +303,7 @@ async function handleDetailBugProjectChange() {
 }
 
 function populateAssigneeDropdowns() {
-    createDropdownFilter("browseAssigneeFilter", "Assignee", usersToPairs());
+    createDropdownFilter("browseAssigneeFilter", "Assignee", usersAndUnassignedPairs());
 
     const bugAssignee = document.getElementById("bugAssignee");
     const detailAssignee = document.getElementById("detailBugAssignee");
@@ -578,6 +578,20 @@ function usersToPairs() {
     return pairs;
 }
 
+function usersAndUnassignedPairs() {
+    /* Used by the Browse assignee filter so bugs with assigned_to IS NULL
+     * can be included/excluded explicitly via the "(Unassigned)" checkbox.
+     * Value "0" is the sentinel; loadBugSection splits it into the
+     * separate unassigned=true query parameter. */
+    const pairs = [{ value: "0", label: "(Unassigned)" }];
+    const userCount = State.users.length;
+    for (let userIndex = 0; userIndex < userCount; userIndex++) {
+        const user = State.users[userIndex];
+        pairs.push({ value: String(user.Id), label: user.DisplayName + " (" + user.Username + ")" });
+    }
+    return pairs;
+}
+
 async function loadBugSection(config) {
     const queryParts = [];
     let abortEmpty = false;
@@ -603,7 +617,25 @@ async function loadBugSection(config) {
         if (assigneeValues.length === 0) {
             abortEmpty = true;
         } else {
-            queryParts.push("assignedTo=" + encodeURIComponent(assigneeValues.join(",")));
+            /* The "(Unassigned)" checkbox has value "0" — peel it off
+             * and send it as a separate unassigned=true param so the
+             * backend can OR it with the assigned_to IN (...) list. */
+            const userIds = [];
+            let includeUnassigned = false;
+            const assigneeValueCount = assigneeValues.length;
+            for (let assigneeIndex = 0; assigneeIndex < assigneeValueCount; assigneeIndex++) {
+                if (assigneeValues[assigneeIndex] === "0") {
+                    includeUnassigned = true;
+                } else {
+                    userIds.push(assigneeValues[assigneeIndex]);
+                }
+            }
+            if (includeUnassigned) {
+                queryParts.push("unassigned=true");
+            }
+            if (userIds.length > 0) {
+                queryParts.push("assignedTo=" + encodeURIComponent(userIds.join(",")));
+            }
         }
     }
     if (config.sortSelectId) {

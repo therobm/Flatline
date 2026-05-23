@@ -189,7 +189,34 @@ namespace Flatline.Routes
                     }
                     sqlBuilder.Append(")");
                 }
-                if (parsedAssignedTos.Count > 0)
+                /*
+                 * Assignee filter:
+                 *   assignedTo=<ids> alone        -> AND b.assigned_to IN (...)
+                 *   unassigned=true alone         -> AND b.assigned_to IS NULL
+                 *   both present                  -> AND (b.assigned_to IS NULL OR b.assigned_to IN (...))
+                 * This lets the Browse view's "all assignees including unassigned" state
+                 * return every bug, while still letting the Home > Unassigned section
+                 * scope to NULL-only.
+                 */
+                bool hasAssignedToFilter = parsedAssignedTos.Count > 0;
+                bool hasUnassignedFilter = unassigned == "true";
+                if (hasAssignedToFilter && hasUnassignedFilter)
+                {
+                    sqlBuilder.Append(" AND (b.assigned_to IS NULL OR b.assigned_to IN (");
+                    int assignedToCount = parsedAssignedTos.Count;
+                    for (int assignedToIndex = 0; assignedToIndex < assignedToCount; assignedToIndex++)
+                    {
+                        if (assignedToIndex > 0)
+                        {
+                            sqlBuilder.Append(",");
+                        }
+                        string paramName = "$assigned_to_" + assignedToIndex;
+                        sqlBuilder.Append(paramName);
+                        selectCommand.Parameters.AddWithValue(paramName, parsedAssignedTos[assignedToIndex]);
+                    }
+                    sqlBuilder.Append("))");
+                }
+                else if (hasAssignedToFilter)
                 {
                     sqlBuilder.Append(" AND b.assigned_to IN (");
                     int assignedToCount = parsedAssignedTos.Count;
@@ -204,6 +231,10 @@ namespace Flatline.Routes
                         selectCommand.Parameters.AddWithValue(paramName, parsedAssignedTos[assignedToIndex]);
                     }
                     sqlBuilder.Append(")");
+                }
+                else if (hasUnassignedFilter)
+                {
+                    sqlBuilder.Append(" AND b.assigned_to IS NULL");
                 }
                 if (createdByFilterPresent)
                 {
@@ -224,10 +255,6 @@ namespace Flatline.Routes
                 {
                     sqlBuilder.Append(" AND b.updated_at >= $updated_since");
                     selectCommand.Parameters.AddWithValue("$updated_since", updatedSince);
-                }
-                if (unassigned == "true")
-                {
-                    sqlBuilder.Append(" AND b.assigned_to IS NULL");
                 }
                 if (excludeClosed == "true")
                 {
