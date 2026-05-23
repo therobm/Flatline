@@ -11,27 +11,29 @@ namespace Flatline.Http
 {
     public static class CertificateProvider
     {
-        private const string CertFilePath = "flatline-cert.pfx";
-        private const string CertPassword = "flatline";
+        private const string CertFileName = "flatline-cert.pfx";
+        /* Legacy password used by deployments prior to the cert-pwd fix. Kept only
+         * so existing flatline-cert.pfx files can be loaded once and rewritten
+         * unencrypted. New PFX files are written with no password. */
+        private const string LegacyCertPassword = "flatline";
 
         public static X509Certificate2 EnsureServerCertificate()
         {
-            if (!File.Exists(CertFilePath))
+            string certFilePath = Path.Combine(AppContext.BaseDirectory, CertFileName);
+
+            if (!File.Exists(certFilePath))
             {
-                Log.Info("Generating new self-signed TLS certificate at " + CertFilePath);
+                Log.Info("Generating new self-signed TLS certificate at " + certFilePath);
                 byte[] generatedPfx = GenerateSelfSignedPfx();
-                File.WriteAllBytes(CertFilePath, generatedPfx);
+                File.WriteAllBytes(certFilePath, generatedPfx);
             }
             else
             {
-                Log.Info("Loading existing TLS certificate from " + CertFilePath);
+                Log.Info("Loading existing TLS certificate from " + certFilePath);
             }
 
-            byte[] pfxBytes = File.ReadAllBytes(CertFilePath);
-            X509Certificate2 fileCert = new X509Certificate2(
-                pfxBytes,
-                CertPassword,
-                X509KeyStorageFlags.Exportable | X509KeyStorageFlags.PersistKeySet);
+            byte[] pfxBytes = File.ReadAllBytes(certFilePath);
+            X509Certificate2 fileCert = LoadPfxWithMigration(pfxBytes, certFilePath);
             try
             {
                 InstallInCurrentUserStore(fileCert);
@@ -45,6 +47,35 @@ namespace Flatline.Http
             finally
             {
                 fileCert.Dispose();
+            }
+        }
+
+        private static X509Certificate2 LoadPfxWithMigration(byte[] pfxBytes, string certFilePath)
+        {
+            X509KeyStorageFlags storageFlags = X509KeyStorageFlags.Exportable | X509KeyStorageFlags.PersistKeySet;
+
+            /* Try the new (unencrypted) PFX first. If that fails, fall back to
+             * the legacy 'flatline' password and, on success, re-export the cert
+             * without a password so subsequent boots take the fast path. */
+            try
+            {
+                return new X509Certificate2(pfxBytes, (string)null, storageFlags);
+            }
+            catch (CryptographicException)
+            {
+                Log.Info("Existing PFX is password-encrypted; migrating it to an unencrypted PFX at " + certFilePath);
+                X509Certificate2 legacyCert = new X509Certificate2(pfxBytes, LegacyCertPassword, storageFlags);
+                try
+                {
+                    byte[] rewritten = legacyCert.Export(X509ContentType.Pkcs12);
+                    File.WriteAllBytes(certFilePath, rewritten);
+                }
+                finally
+                {
+                    legacyCert.Dispose();
+                }
+                byte[] freshBytes = File.ReadAllBytes(certFilePath);
+                return new X509Certificate2(freshBytes, (string)null, storageFlags);
             }
         }
 
@@ -125,7 +156,7 @@ namespace Flatline.Http
                 X509Certificate2 generatedCert = request.CreateSelfSigned(notBefore, notAfter);
                 try
                 {
-                    return generatedCert.Export(X509ContentType.Pkcs12, CertPassword);
+                    return generatedCert.Export(X509ContentType.Pkcs12);
                 }
                 finally
                 {
