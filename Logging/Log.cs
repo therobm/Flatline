@@ -13,6 +13,7 @@ namespace Flatline.Logging
         private static StreamWriter CurrentLogWriter = null;
         private static DateTime CurrentLogDate = DateTime.MinValue;
         private static TextWriter OriginalConsoleOut = Console.Out;
+        private static bool ProcessExitHandlerInstalled = false;
 
         public static void Info(string message)
         {
@@ -61,7 +62,15 @@ namespace Flatline.Logging
                 OriginalConsoleOut.WriteLine(formatted);
                 EnsureLogWriterForDate(now);
                 CurrentLogWriter.WriteLine(formatted);
-                CurrentLogWriter.Flush();
+                /* Flush only when the line matters enough that losing it on a
+                 * crash would be a problem. Per-request Info lines are the hot
+                 * path; they stay in StreamWriter's buffer and get flushed
+                 * either on the next Warning+, on log-file rotation, or on
+                 * process exit (see InstallProcessExitHandler). */
+                if (level != eLogLevel.Info)
+                {
+                    CurrentLogWriter.Flush();
+                }
             }
         }
 
@@ -96,6 +105,9 @@ namespace Flatline.Logging
 
             if (CurrentLogWriter != null)
             {
+                /* StreamWriter.Dispose flushes its buffer before closing, so
+                 * day-rollover does not lose the previous day's buffered Info
+                 * lines. */
                 CurrentLogWriter.Dispose();
                 CurrentLogWriter = null;
             }
@@ -110,6 +122,24 @@ namespace Flatline.Logging
             FileStream fileStream = new FileStream(filePath, FileMode.Append, FileAccess.Write, FileShare.Read);
             CurrentLogWriter = new StreamWriter(fileStream);
             CurrentLogDate = today;
+
+            if (!ProcessExitHandlerInstalled)
+            {
+                AppDomain.CurrentDomain.ProcessExit += OnProcessExit;
+                ProcessExitHandlerInstalled = true;
+            }
+        }
+
+        private static void OnProcessExit(object sender, EventArgs eventArgs)
+        {
+            lock (WriteLock)
+            {
+                if (CurrentLogWriter != null)
+                {
+                    CurrentLogWriter.Dispose();
+                    CurrentLogWriter = null;
+                }
+            }
         }
     }
 }
