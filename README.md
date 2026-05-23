@@ -10,4 +10,4 @@ I made this both because I wanted a simple bug tracker without all the extra fea
 
 ## Updates & Contributions
 
-I'll keep pushing updates to this over time, feel free to file feature requests but the goal is to keep this thing small and bloat free so you might just want to fork it and add whatever you want on your own.
+I'll keep pushing updates to this over time, feel free to file bugs & feature requests but the goal is to keep this thing small and bloat free so if you want fancy stuff you might just want to fork it and add whatever you want on your own.
