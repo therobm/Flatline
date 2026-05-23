@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flatline</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="app">
+        <header id="appHeader" class="hidden">
+            <div class="header-brand">Flatline</div>
+            <nav class="header-nav">
+                <button type="button" id="navHomeButton" class="nav-button">Home</button>
+                <button type="button" id="navBrowseButton" class="nav-button">Browse</button>
+                <button type="button" id="navMyBugsButton" class="nav-button">My bugs</button>
+                <button type="button" id="navSettingsButton" class="nav-button hidden">Settings</button>
+            </nav>
+            <div class="header-user">
+                <span id="currentUserLabel"></span>
+                <button type="button" id="logoutButton" class="nav-button">Log out</button>
+            </div>
+        </header>
+
+        <main>
+            <section id="loginView" class="view hidden">
+                <div class="login-card">
+                    <h1>Flatline</h1>
+                    <p class="subtitle">Self-hosted bug tracker</p>
+                    <form id="loginForm">
+                        <label for="loginUsername">Username</label>
+                        <input type="text" id="loginUsername" autocomplete="username" required>
+                        <label for="loginPassword">Password</label>
+                        <input type="password" id="loginPassword" autocomplete="current-password" required>
+                        <button type="submit">Sign in</button>
+                        <div id="loginError" class="error-message"></div>
+                    </form>
+                </div>
+            </section>
+
+            <section id="homeView" class="view hidden">
+                <h2>Home</h2>
+
+                <div class="bug-section">
+                    <h3>New bugs (last 24h)</h3>
+                    <div class="filters">
+                        <label>Status
+                            <div class="checkbox-group" id="homeNewStatusFilter"></div>
+                        </label>
+                        <label>Priority
+                            <select id="homeNewPriorityFilter" multiple size="4"></select>
+                        </label>
+                    </div>
+                    <table class="bug-table">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Title</th>
+                                <th>Status</th>
+                                <th>Priority</th>
+                                <th>Assignee</th>
+                                <th>Updated</th>
+                            </tr>
+                        </thead>
+                        <tbody id="homeNewTbody"></tbody>
+                    </table>
+                    <div id="homeNewEmpty" class="empty-message hidden">No bugs found.</div>
+                </div>
+
+                <div class="bug-section">
+                    <h3>Recently modified (last 24h)</h3>
+                    <div class="filters">
+                        <label>Status
+                            <select id="homeModifiedStatusFilter" multiple size="4"></select>
+                        </label>
+                        <label>Priority
+                            <select id="homeModifiedPriorityFilter" multiple size="4"></select>
+                        </label>
+                    </div>
+                    <table class="bug-table">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Title</th>
+                                <th>Status</th>
+                                <th>Priority</th>
+                                <th>Assignee</th>
+                                <th>Updated</th>
+                            </tr>
+                        </thead>
+                        <tbody id="homeModifiedTbody"></tbody>
+                    </table>
+                    <div id="homeModifiedEmpty" class="empty-message hidden">No bugs found.</div>
+                </div>
+
+                <div class="bug-section">
+                    <h3>Unassigned</h3>
+                    <div class="filters">
+                        <label>Status
+                            <select id="homeUnassignedStatusFilter" multiple size="4"></select>
+                        </label>
+                        <label>Priority
+                            <select id="homeUnassignedPriorityFilter" multiple size="4"></select>
+                        </label>
+                    </div>
+                    <table class="bug-table">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Title</th>
+                                <th>Status</th>
+                                <th>Priority</th>
+                                <th>Assignee</th>
+                                <th>Updated</th>
+                            </tr>
+                        </thead>
+                        <tbody id="homeUnassignedTbody"></tbody>
+                    </table>
+                    <div id="homeUnassignedEmpty" class="empty-message hidden">No bugs found.</div>
+                </div>
+            </section>
+
+            <section id="userView" class="view hidden">
+                <h2>My bugs</h2>
+
+                <div class="bug-section">
+                    <h3>Bugs I created</h3>
+                    <div class="filters">
+                        <label>Status
+                            <select id="userCreatedStatusFilter" multiple size="4"></select>
+                        </label>
+                        <label>Priority
+                            <select id="userCreatedPriorityFilter" multiple size="4"></select>
+                        </label>
+                        <label class="checkbox-inline">
+                            <input type="checkbox" id="userCreatedIncludeClosed">
+                            Include closed
+                        </label>
+                    </div>
+                    <table class="bug-table">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Title</th>
+                                <th>Status</th>
+                                <th>Priority</th>
+                                <th>Assignee</th>
+                                <th>Updated</th>
+                            </tr>
+                        </thead>
+                        <tbody id="userCreatedTbody"></tbody>
+                    </table>
+                    <div id="userCreatedEmpty" class="empty-message hidden">No bugs found.</div>
+                </div>
+
+                <div class="bug-section">
+                    <h3>Bugs assigned to me</h3>
+                    <div class="filters">
+                        <label>Status
+                            <select id="userAssignedStatusFilter" multiple size="4"></select>
+                        </label>
+                        <label>Priority
+                            <select id="userAssignedPriorityFilter" multiple size="4"></select>
+                        </label>
+                        <label class="checkbox-inline">
+                            <input type="checkbox" id="userAssignedIncludeClosed">
+                            Include closed
+                        </label>
+                    </div>
+                    <table class="bug-table">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Title</th>
+                                <th>Status</th>
+                                <th>Priority</th>
+                                <th>Assignee</th>
+                                <th>Updated</th>
+                            </tr>
+                        </thead>
+                        <tbody id="userAssignedTbody"></tbody>
+                    </table>
+                    <div id="userAssignedEmpty" class="empty-message hidden">No bugs found.</div>
+                </div>
+            </section>
+
+            <section id="browseView" class="view hidden">
+                <div class="view-header">
+                    <h2>Browse</h2>
+                    <button type="button" id="browseNewBugButton" class="primary-button">New bug</button>
+                </div>
+                <div class="filters">
+                    <label>Status
+                        <select id="browseStatusFilter" multiple size="4"></select>
+                    </label>
+                    <label>Priority
+                        <select id="browsePriorityFilter" multiple size="4"></select>
+                    </label>
+                    <label>Assignee
+                        <select id="browseAssigneeFilter" multiple size="4"></select>
+                    </label>
+                    <label>Sort
+                        <select id="browseSortFilter">
+                            <option value="">Newest first</option>
+                            <option value="updated">Recently updated</option>
+                            <option value="priority">Priority</option>
+                            <option value="status">Status</option>
+                        </select>
+                    </label>
+                </div>
+                <table class="bug-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Title</th>
+                            <th>Status</th>
+                            <th>Priority</th>
+                            <th>Assignee</th>
+                            <th>Updated</th>
+                        </tr>
+                    </thead>
+                    <tbody id="browseTbody"></tbody>
+                </table>
+                <div id="browseEmpty" class="empty-message hidden">No bugs found.</div>
+            </section>
+
+            <section id="bugDetailView" class="view hidden">
+                <button type="button" id="backToListButton" class="link-button">&larr; Back</button>
+                <div id="bugDetailContent">
+                    <div class="bug-detail-header">
+                        <h2 id="bugDetailIdHeading">Bug</h2>
+                    </div>
+                    <div class="bug-detail-form">
+                        <label>Title
+                            <input type="text" id="detailBugTitle" required>
+                        </label>
+                        <div class="form-row">
+                            <label>Project
+                                <select id="detailBugProject" required></select>
+                            </label>
+                            <label>Status
+                                <select id="detailBugStatus"></select>
+                            </label>
+                            <label>Priority
+                                <select id="detailBugPriority"></select>
+                            </label>
+                            <label>Assignee
+                                <select id="detailBugAssignee">
+                                    <option value="">Unassigned</option>
+                                </select>
+                            </label>
+                        </div>
+                        <div class="form-row">
+                            <label>Found in version
+                                <select id="detailBugFoundInVersion">
+                                    <option value="">(none)</option>
+                                </select>
+                            </label>
+                            <label>Fixed in version
+                                <select id="detailBugFixedInVersion">
+                                    <option value="">(none)</option>
+                                </select>
+                            </label>
+                        </div>
+                        <label>Description
+                            <textarea id="detailBugDescription" rows="6"></textarea>
+                        </label>
+                        <div class="bug-detail-meta">
+                            <div class="bug-detail-meta-item"><span class="bug-detail-meta-label">Reporter</span><span id="detailBugReporter"></span></div>
+                            <div class="bug-detail-meta-item"><span class="bug-detail-meta-label">Created</span><span id="detailBugCreated"></span></div>
+                            <div class="bug-detail-meta-item"><span class="bug-detail-meta-label">Updated</span><span id="detailBugUpdated"></span></div>
+                        </div>
+                        <div class="form-buttons">
+                            <button type="button" id="saveBugDetailButton" class="primary-button">Save</button>
+                            <button type="button" id="cancelBugDetailButton" class="edit-button">Cancel</button>
+                        </div>
+                        <div id="detailBugError" class="error-message"></div>
+                    </div>
+                </div>
+                <div id="commentsSection">
+                    <h3>Comments</h3>
+                    <div id="commentsList"></div>
+                    <form id="newCommentForm">
+                        <textarea id="newCommentText" placeholder="Add a comment..." rows="3" required></textarea>
+                        <button type="submit">Post comment</button>
+                    </form>
+                </div>
+            </section>
+
+            <section id="bugEditView" class="view hidden">
+                <button type="button" id="cancelBugEditButton" class="link-button">&larr; Cancel</button>
+                <h2 id="bugEditHeading">New bug</h2>
+                <form id="bugEditForm">
+                    <label for="bugTitle">Title</label>
+                    <input type="text" id="bugTitle" required>
+                    <label for="bugDescription">Description</label>
+                    <textarea id="bugDescription" rows="6"></textarea>
+                    <div class="form-row">
+                        <label>Project
+                            <select id="bugProject" required></select>
+                        </label>
+                        <label>Status
+                            <select id="bugStatus"></select>
+                        </label>
+                        <label>Priority
+                            <select id="bugPriority"></select>
+                        </label>
+                        <label>Assignee
+                            <select id="bugAssignee">
+                                <option value="">Unassigned</option>
+                            </select>
+                        </label>
+                    </div>
+                    <div class="form-row">
+                        <label>Found in version
+                            <select id="bugFoundInVersion">
+                                <option value="">(none)</option>
+                            </select>
+                        </label>
+                    </div>
+                    <button type="submit" id="bugEditSubmit">Create bug</button>
+                    <div id="bugEditError" class="error-message"></div>
+                </form>
+            </section>
+
+            <section id="settingsView" class="view hidden">
+                <div class="view-header">
+                    <h2>Settings</h2>
+                </div>
+
+                <div class="settings-section" id="userManagementSection">
+                    <div class="settings-section-header">
+                        <h3>User management</h3>
+                        <button type="button" id="newUserButton" class="primary-button">New user</button>
+                    </div>
+                    <table class="user-table">
+                        <thead>
+                            <tr>
+                                <th>Username</th>
+                                <th>Display name</th>
+                                <th>Admin</th>
+                                <th>Created</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody id="userTableBody"></tbody>
+                    </table>
+
+                    <div id="editUserPanel" class="hidden">
+                        <h4 id="editUserHeading">Edit user</h4>
+                        <form id="editUserForm">
+                            <label for="editUserDisplayName">Display name</label>
+                            <input type="text" id="editUserDisplayName" required>
+                            <label for="editUserPassword">New password (leave blank to keep current)</label>
+                            <input type="password" id="editUserPassword" autocomplete="new-password">
+                            <label for="editUserPasswordConfirm">Confirm new password</label>
+                            <input type="password" id="editUserPasswordConfirm" autocomplete="new-password">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="editUserIsAdmin">
+                                Administrator
+                            </label>
+                            <div class="form-buttons">
+                                <button type="submit">Save changes</button>
+                                <button type="button" id="cancelEditUserButton" class="edit-button">Cancel</button>
+                            </div>
+                            <div id="editUserError" class="error-message"></div>
+                        </form>
+                    </div>
+
+                    <div id="newUserPanel" class="hidden">
+                        <h4>Create user</h4>
+                        <form id="newUserForm">
+                            <label for="newUserUsername">Username</label>
+                            <input type="text" id="newUserUsername" required>
+                            <label for="newUserDisplayName">Display name</label>
+                            <input type="text" id="newUserDisplayName">
+                            <label for="newUserPassword">Password</label>
+                            <input type="password" id="newUserPassword" autocomplete="new-password" required>
+                            <label for="newUserPasswordConfirm">Confirm password</label>
+                            <input type="password" id="newUserPasswordConfirm" autocomplete="new-password" required>
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="newUserIsAdmin">
+                                Administrator
+                            </label>
+                            <button type="submit">Create user</button>
+                            <div id="newUserError" class="error-message"></div>
+                        </form>
+                    </div>
+                </div>
+
+                <div class="settings-section" id="projectManagementSection">
+                    <div class="settings-section-header">
+                        <h3>Project management</h3>
+                        <button type="button" id="newProjectButton" class="primary-button">New project</button>
+                    </div>
+                    <table class="user-table">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Versions</th>
+                                <th>Created</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody id="projectTableBody"></tbody>
+                    </table>
+
+                    <div id="editProjectPanel" class="hidden">
+                        <h4 id="editProjectHeading">Edit project</h4>
+                        <form id="editProjectForm">
+                            <label for="editProjectName">Name</label>
+                            <input type="text" id="editProjectName" required>
+                            <div class="form-buttons">
+                                <button type="submit">Save changes</button>
+                                <button type="button" id="cancelEditProjectButton" class="edit-button">Cancel</button>
+                            </div>
+                            <div id="editProjectError" class="error-message"></div>
+                        </form>
+                    </div>
+
+                    <div id="newProjectPanel" class="hidden">
+                        <h4>Create project</h4>
+                        <form id="newProjectForm">
+                            <label for="newProjectName">Name</label>
+                            <input type="text" id="newProjectName" required>
+                            <div class="form-buttons">
+                                <button type="submit">Create project</button>
+                                <button type="button" id="cancelNewProjectButton" class="edit-button">Cancel</button>
+                            </div>
+                            <div id="newProjectError" class="error-message"></div>
+                        </form>
+                    </div>
+
+                    <div id="versionsPanel" class="hidden">
+                        <div class="settings-section-header">
+                            <h4 id="versionsHeading">Versions</h4>
+                            <button type="button" id="newVersionButton" class="primary-button">New version</button>
+                        </div>
+                        <table class="user-table">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Created</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody id="versionTableBody"></tbody>
+                        </table>
+                        <div id="versionsEmpty" class="empty-message hidden">No versions defined.</div>
+
+                        <div id="editVersionPanel" class="hidden">
+                            <h4 id="editVersionHeading">Edit version</h4>
+                            <form id="editVersionForm">
+                                <label for="editVersionName">Name</label>
+                                <input type="text" id="editVersionName" required>
+                                <div class="form-buttons">
+                                    <button type="submit">Save changes</button>
+                                    <button type="button" id="cancelEditVersionButton" class="edit-button">Cancel</button>
+                                </div>
+                                <div id="editVersionError" class="error-message"></div>
+                            </form>
+                        </div>
+
+                        <div id="newVersionPanel" class="hidden">
+                            <h4>Create version</h4>
+                            <form id="newVersionForm">
+                                <label for="newVersionName">Name</label>
+                                <input type="text" id="newVersionName" required>
+                                <div class="form-buttons">
+                                    <button type="submit">Create version</button>
+                                    <button type="button" id="cancelNewVersionButton" class="edit-button">Cancel</button>
+                                </div>
+                                <div id="newVersionError" class="error-message"></div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+    <script src="app.js"></script>
+</body>
+</html>
