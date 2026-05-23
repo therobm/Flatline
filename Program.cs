@@ -7,6 +7,7 @@ using Microsoft.Data.Sqlite;
 using Flatline.Database;
 using Flatline.Http;
 using Flatline.Logging;
+using Flatline.Routes;
 
 namespace Flatline
 {
@@ -28,10 +29,13 @@ namespace Flatline
             FlatlineHttpServer server = new FlatlineHttpServer();
             server.Start(bindAddress, config.HttpPort, config.HttpsPort, serverCertificate);
 
+            PeriodicTasks.Register("session-cleanup", TimeSpan.FromMinutes(30), AuthRoutes.PruneExpiredSessions);
+
             Console.CancelKeyPress += OnCancelKeyPress;
             ShutdownEvent.WaitOne();
 
             Log.Info("Stopping server.");
+            PeriodicTasks.StopAll();
             server.StopAndWait();
             CertificateProvider.RemoveFromCurrentUserStore(serverCertificate);
             serverCertificate.Dispose();
