@@ -364,3 +364,7 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+
+# Local copy of FLATLINE_API.md with the real server URL (and optionally
+# an API key) baked in for personal use. Not checked in.
+FLATLINE_API.local.md
