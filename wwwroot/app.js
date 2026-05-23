@@ -13,6 +13,7 @@ const State = {
     activeProjectIdForVersions: 0,
     versionsForActiveProject: [],
     apiKeys: [],
+    browseOffset: 0,
     metadata: {
         Statuses: {},
         Priorities: {},
@@ -690,6 +691,7 @@ async function loadBugSection(config) {
 
     const bugs = await apiRequest("GET", "/api/bugs" + queryString);
     renderBugRows(config.tableBodyId, config.emptyId, bugs);
+    return bugs.length;
 }
 
 function renderBugRows(tableBodyId, emptyId, bugs) {
@@ -795,15 +797,74 @@ async function refreshUserView() {
     await refreshUserAssignedSection();
 }
 
+const BrowsePageSize = 50;
+
 async function loadBrowseSection() {
-    await loadBugSection({
+    const returnedCount = await loadBugSection({
         tableBodyId: "browseTbody",
         emptyId: "browseEmpty",
         statusContainerId: "browseStatusFilter",
         priorityContainerId: "browsePriorityFilter",
         assigneeContainerId: "browseAssigneeFilter",
-        sortSelectId: "browseSortFilter"
+        sortSelectId: "browseSortFilter",
+        extraParams: {
+            limit: String(BrowsePageSize),
+            offset: String(State.browseOffset)
+        }
     });
+    renderBrowsePagination(returnedCount);
+}
+
+/* Reset to page 1 and reload. Used by every Browse filter change so a
+ * user toggling filters doesn't end up stuck on an empty page-5. */
+async function reloadBrowseFromFirstPage() {
+    State.browseOffset = 0;
+    await loadBrowseSection();
+}
+
+function renderBrowsePagination(returnedCount) {
+    const container = document.getElementById("browsePagination");
+    if (!container) {
+        return;
+    }
+    /* Returned count is undefined if loadBugSection short-circuited
+     * because no filters were checked. Treat it as zero. */
+    let lastCount = 0;
+    if (typeof returnedCount === "number") {
+        lastCount = returnedCount;
+    }
+    const offset = State.browseOffset;
+    const pageNumber = Math.floor(offset / BrowsePageSize) + 1;
+    const hasPrev = offset > 0;
+    /* A full page back is our signal that more might exist. If we got
+     * fewer rows than the page size, we're on the last page. */
+    const hasNext = lastCount >= BrowsePageSize;
+
+    /* Hide the control entirely on page 1 when there's no next page —
+     * no point showing "Page 1" with two disabled buttons. */
+    if (!hasPrev && !hasNext) {
+        container.classList.add("hidden");
+        return;
+    }
+    container.classList.remove("hidden");
+
+    document.getElementById("browsePrevButton").disabled = !hasPrev;
+    document.getElementById("browseNextButton").disabled = !hasNext;
+    document.getElementById("browsePageLabel").textContent = "Page " + pageNumber;
+}
+
+function handleBrowsePrevClick() {
+    let newOffset = State.browseOffset - BrowsePageSize;
+    if (newOffset < 0) {
+        newOffset = 0;
+    }
+    State.browseOffset = newOffset;
+    loadBrowseSection();
+}
+
+function handleBrowseNextClick() {
+    State.browseOffset = State.browseOffset + BrowsePageSize;
+    loadBrowseSection();
 }
 
 function handleBugRowClick(clickEvent) {
@@ -1330,7 +1391,10 @@ async function handleNavBrowseClick() {
     State.bugDetailReturnTo = "browseView";
     showView("browseView");
     await loadUsers();
-    await loadBrowseSection();
+    /* Open Browse fresh at page 1; preserving the previous offset across
+     * a full nav click would surprise a user who navigates back to it
+     * expecting the top of the list. */
+    await reloadBrowseFromFirstPage();
 }
 
 async function handleNavMyBugsClick() {
@@ -2046,10 +2110,12 @@ function attachEventHandlers() {
     document.getElementById("userAssignedPriorityFilter").addEventListener("change", refreshUserAssignedSection);
     document.getElementById("userAssignedIncludeClosed").addEventListener("change", refreshUserAssignedSection);
 
-    document.getElementById("browseStatusFilter").addEventListener("change", loadBrowseSection);
-    document.getElementById("browsePriorityFilter").addEventListener("change", loadBrowseSection);
-    document.getElementById("browseAssigneeFilter").addEventListener("change", loadBrowseSection);
-    document.getElementById("browseSortFilter").addEventListener("change", loadBrowseSection);
+    document.getElementById("browseStatusFilter").addEventListener("change", reloadBrowseFromFirstPage);
+    document.getElementById("browsePriorityFilter").addEventListener("change", reloadBrowseFromFirstPage);
+    document.getElementById("browseAssigneeFilter").addEventListener("change", reloadBrowseFromFirstPage);
+    document.getElementById("browseSortFilter").addEventListener("change", reloadBrowseFromFirstPage);
+    document.getElementById("browsePrevButton").addEventListener("click", handleBrowsePrevClick);
+    document.getElementById("browseNextButton").addEventListener("click", handleBrowseNextClick);
 
     document.getElementById("browseNewBugButton").addEventListener("click", handleNewBugClick);
     document.getElementById("backToListButton").addEventListener("click", handleBackToListClick);

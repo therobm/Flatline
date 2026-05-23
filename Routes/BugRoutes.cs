@@ -49,6 +49,14 @@ namespace Flatline.Routes
             ListBugs(context);
         }
 
+        /* Default page size when callers don't pass `limit`. The previous
+         * behavior was 'return everything', so any client that doesn't
+         * specify a limit would now see at most this many bugs — change with
+         * eyes open. The hard cap is what we'll actually enforce against
+         * caller-supplied limits to bound a single response. */
+        private const int DefaultListBugsLimit = 50;
+        private const int MaxListBugsLimit = 200;
+
         public static void ListBugs(FlatlineHttpContext context)
         {
             string status = HttpRequestReader.GetQueryValue(context, "status");
@@ -62,6 +70,32 @@ namespace Flatline.Routes
             string excludeClosed = HttpRequestReader.GetQueryValue(context, "excludeClosed");
             string search = HttpRequestReader.GetQueryValue(context, "search");
             string projectFilter = HttpRequestReader.GetQueryValue(context, "projectId");
+            string limitRaw = HttpRequestReader.GetQueryValue(context, "limit");
+            string offsetRaw = HttpRequestReader.GetQueryValue(context, "offset");
+
+            int parsedLimit = DefaultListBugsLimit;
+            if (!string.IsNullOrEmpty(limitRaw))
+            {
+                if (!int.TryParse(limitRaw, out parsedLimit) || parsedLimit <= 0)
+                {
+                    HttpResponseWriter.WriteJson(context, 400, new { error = "Invalid limit." });
+                    return;
+                }
+                if (parsedLimit > MaxListBugsLimit)
+                {
+                    parsedLimit = MaxListBugsLimit;
+                }
+            }
+
+            int parsedOffset = 0;
+            if (!string.IsNullOrEmpty(offsetRaw))
+            {
+                if (!int.TryParse(offsetRaw, out parsedOffset) || parsedOffset < 0)
+                {
+                    HttpResponseWriter.WriteJson(context, 400, new { error = "Invalid offset." });
+                    return;
+                }
+            }
 
             List<int> parsedStatuses = new List<int>();
             if (!string.IsNullOrEmpty(status))
@@ -292,6 +326,9 @@ namespace Flatline.Routes
                 {
                     sqlBuilder.Append(" ORDER BY b.created_at DESC");
                 }
+                sqlBuilder.Append(" LIMIT $row_limit OFFSET $row_offset");
+                selectCommand.Parameters.AddWithValue("$row_limit", parsedLimit);
+                selectCommand.Parameters.AddWithValue("$row_offset", parsedOffset);
                 sqlBuilder.Append(";");
 
                 selectCommand.CommandText = sqlBuilder.ToString();
