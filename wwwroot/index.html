@@ -250,9 +250,14 @@
                                 </select>
                             </label>
                         </div>
-                        <label>Description
+                        <div class="description-field">
+                            <div class="description-header">
+                                <label for="detailBugDescription">Description</label>
+                                <button type="button" id="detailBugDescriptionPreviewToggle" class="link-button">Preview</button>
+                            </div>
                             <textarea id="detailBugDescription" rows="6"></textarea>
-                        </label>
+                            <div id="detailBugDescriptionPreview" class="markdown-body hidden"></div>
+                        </div>
                         <div class="bug-detail-meta">
                             <div class="bug-detail-meta-item"><span class="bug-detail-meta-label">Reporter</span><span id="detailBugReporter"></span></div>
                             <div class="bug-detail-meta-item"><span class="bug-detail-meta-label">Created</span><span id="detailBugCreated"></span></div>
