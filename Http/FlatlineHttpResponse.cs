@@ -12,6 +12,7 @@ namespace Flatline.Http
         public Dictionary<string, string> Headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         public List<string> SetCookieHeaders = new List<string>();
         public byte[] BodyBytes = new byte[0];
+        public bool KeepAlive = true;
 
         public void SetCookie(string name, string value, DateTime expiresUtc, bool httpOnly, string path, bool secure)
         {
@@ -70,7 +71,14 @@ namespace Flatline.Http
                 headersBuilder.Append("\r\n");
             }
 
-            headersBuilder.Append("Connection: close\r\n");
+            if (KeepAlive)
+            {
+                headersBuilder.Append("Connection: keep-alive\r\n");
+            }
+            else
+            {
+                headersBuilder.Append("Connection: close\r\n");
+            }
             headersBuilder.Append("\r\n");
 
             byte[] headerBytes = Encoding.ASCII.GetBytes(headersBuilder.ToString());
