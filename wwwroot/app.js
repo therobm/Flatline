@@ -1841,8 +1841,19 @@ function handleEditUserClick(clickEvent) {
     document.getElementById("editUserDisplayName").value = user.DisplayName;
     document.getElementById("editUserPassword").value = "";
     document.getElementById("editUserPasswordConfirm").value = "";
+    document.getElementById("editUserCurrentPassword").value = "";
     document.getElementById("editUserIsAdmin").checked = user.IsAdmin;
     document.getElementById("editUserError").textContent = "";
+
+    /* The "current password" row only makes sense when editing yourself.
+     * Admins changing other users do not (and cannot) supply the target
+     * user's current password. */
+    const currentPasswordRow = document.getElementById("editUserCurrentPasswordRow");
+    if (State.currentUser !== null && userId === State.currentUser.Id) {
+        currentPasswordRow.classList.remove("hidden");
+    } else {
+        currentPasswordRow.classList.add("hidden");
+    }
 }
 
 function handleCancelEditUserClick() {
@@ -1879,6 +1890,15 @@ async function handleEditUserSubmit(submitEvent) {
     };
     if (passwordValue.length > 0) {
         payload.Password = passwordValue;
+        const isSelfEdit = State.currentUser !== null && userId === State.currentUser.Id;
+        if (isSelfEdit) {
+            const currentPasswordValue = document.getElementById("editUserCurrentPassword").value;
+            if (currentPasswordValue.length === 0) {
+                errorElement.textContent = "Enter your current password to change it.";
+                return;
+            }
+            payload.CurrentPassword = currentPasswordValue;
+        }
     }
 
     try {

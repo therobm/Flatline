@@ -363,6 +363,10 @@
                         <form id="editUserForm">
                             <label for="editUserDisplayName">Display name</label>
                             <input type="text" id="editUserDisplayName" required>
+                            <div id="editUserCurrentPasswordRow" class="hidden">
+                                <label for="editUserCurrentPassword">Current password (required to change your password)</label>
+                                <input type="password" id="editUserCurrentPassword" autocomplete="current-password">
+                            </div>
                             <label for="editUserPassword">New password (leave blank to keep current)</label>
                             <input type="password" id="editUserPassword" autocomplete="new-password">
                             <label for="editUserPasswordConfirm">Confirm new password</label>

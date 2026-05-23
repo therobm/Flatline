@@ -19,6 +19,7 @@ namespace Flatline.Routes
     {
         public string DisplayName;
         public string Password;
+        public string CurrentPassword;
         public bool IsAdmin;
         public bool UpdateIsAdmin;
     }
@@ -179,14 +180,34 @@ namespace Flatline.Routes
             SqliteConnection connection = SqliteConnectionFactory.OpenConnection();
             try
             {
+                /* Load the existing password_hash up front so a self-service
+                 * password change can verify the user's current password before
+                 * we touch anything. Admins editing OTHER users skip the check
+                 * (intentional admin power). */
                 SqliteCommand existsCommand = connection.CreateCommand();
-                existsCommand.CommandText = "SELECT id FROM users WHERE id = $id;";
+                existsCommand.CommandText = "SELECT password_hash FROM users WHERE id = $id;";
                 existsCommand.Parameters.AddWithValue("$id", id);
                 object existsResult = existsCommand.ExecuteScalar();
                 if (existsResult == null)
                 {
                     HttpResponseWriter.WriteJson(context, 404, new { error = "User not found." });
                     return;
+                }
+                string existingPasswordHash = (string)existsResult;
+
+                bool isChangingPassword = !string.IsNullOrEmpty(updateRequest.Password);
+                if (isChangingPassword && isSelfUpdate)
+                {
+                    if (string.IsNullOrEmpty(updateRequest.CurrentPassword))
+                    {
+                        HttpResponseWriter.WriteJson(context, 400, new { error = "Current password is required to change your password." });
+                        return;
+                    }
+                    if (!BCrypt.Net.BCrypt.Verify(updateRequest.CurrentPassword, existingPasswordHash))
+                    {
+                        HttpResponseWriter.WriteJson(context, 401, new { error = "Current password is incorrect." });
+                        return;
+                    }
                 }
 
                 List<string> setClauses = new List<string>();
@@ -197,7 +218,7 @@ namespace Flatline.Routes
                     setClauses.Add("display_name = $display_name");
                     updateCommand.Parameters.AddWithValue("$display_name", updateRequest.DisplayName);
                 }
-                if (!string.IsNullOrEmpty(updateRequest.Password))
+                if (isChangingPassword)
                 {
                     string passwordHash = BCrypt.Net.BCrypt.HashPassword(updateRequest.Password);
                     setClauses.Add("password_hash = $password_hash");
