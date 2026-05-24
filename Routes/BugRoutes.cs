@@ -86,6 +86,7 @@ namespace Flatline.Routes
             string excludeClosed = HttpRequestReader.GetQueryValue(context, "excludeClosed");
             string search = HttpRequestReader.GetQueryValue(context, "search");
             string projectFilter = HttpRequestReader.GetQueryValue(context, "projectId");
+            string sortDirection = HttpRequestReader.GetQueryValue(context, "dir");
             string limitRaw = HttpRequestReader.GetQueryValue(context, "limit");
             string offsetRaw = HttpRequestReader.GetQueryValue(context, "offset");
 
@@ -191,16 +192,26 @@ namespace Flatline.Routes
                 createdByFilterPresent = true;
             }
 
-            long parsedProjectId = 0;
-            bool projectFilterPresent = false;
+            List<long> parsedProjectIds = new List<long>();
             if (!string.IsNullOrEmpty(projectFilter))
             {
-                if (!long.TryParse(projectFilter, out parsedProjectId))
+                string[] projectParts = projectFilter.Split(',');
+                int projectPartCount = projectParts.Length;
+                for (int projectPartIndex = 0; projectPartIndex < projectPartCount; projectPartIndex++)
                 {
-                    HttpResponseWriter.WriteJson(context, 400, new { error = "Invalid projectId filter." });
-                    return;
+                    string projectPart = projectParts[projectPartIndex].Trim();
+                    if (projectPart.Length == 0)
+                    {
+                        continue;
+                    }
+                    long parsedValue;
+                    if (!long.TryParse(projectPart, out parsedValue))
+                    {
+                        HttpResponseWriter.WriteJson(context, 400, new { error = "Invalid projectId filter." });
+                        return;
+                    }
+                    parsedProjectIds.Add(parsedValue);
                 }
-                projectFilterPresent = true;
             }
 
             List<Bug> bugList = new List<Bug>();
@@ -296,10 +307,21 @@ namespace Flatline.Routes
                     sqlBuilder.Append(" AND b.created_by = $created_by");
                     selectCommand.Parameters.AddWithValue("$created_by", parsedCreatedBy);
                 }
-                if (projectFilterPresent)
+                if (parsedProjectIds.Count > 0)
                 {
-                    sqlBuilder.Append(" AND b.project_id = $project_id");
-                    selectCommand.Parameters.AddWithValue("$project_id", parsedProjectId);
+                    sqlBuilder.Append(" AND b.project_id IN (");
+                    int projectIdCount = parsedProjectIds.Count;
+                    for (int projectIdIndex = 0; projectIdIndex < projectIdCount; projectIdIndex++)
+                    {
+                        if (projectIdIndex > 0)
+                        {
+                            sqlBuilder.Append(",");
+                        }
+                        string paramName = "$project_id_" + projectIdIndex;
+                        sqlBuilder.Append(paramName);
+                        selectCommand.Parameters.AddWithValue(paramName, parsedProjectIds[projectIdIndex]);
+                    }
+                    sqlBuilder.Append(")");
                 }
                 if (!string.IsNullOrEmpty(createdSince))
                 {
@@ -326,22 +348,72 @@ namespace Flatline.Routes
                     selectCommand.Parameters.AddWithValue("$title_search", "%" + escaped + "%");
                 }
 
-                if (sort == "priority")
+                /* Direction defaults to DESC for date and priority columns (most
+                 * recent / highest first feels natural), and ASC for everything
+                 * else. Callers can override via dir=asc|desc. */
+                string normalizedDirection = "";
+                if (!string.IsNullOrEmpty(sortDirection))
                 {
-                    sqlBuilder.Append(" ORDER BY b.priority DESC, b.created_at DESC");
+                    string lowered = sortDirection.ToLowerInvariant();
+                    if (lowered == "asc" || lowered == "desc")
+                    {
+                        normalizedDirection = lowered.ToUpperInvariant();
+                    }
+                    else
+                    {
+                        HttpResponseWriter.WriteJson(context, 400, new { error = "Invalid dir filter." });
+                        return;
+                    }
+                }
+
+                string sortColumn = "b.created_at";
+                string defaultSortDirection = "DESC";
+                if (sort == "id")
+                {
+                    sortColumn = "b.id";
+                    defaultSortDirection = "DESC";
+                }
+                else if (sort == "title")
+                {
+                    sortColumn = "b.title COLLATE NOCASE";
+                    defaultSortDirection = "ASC";
+                }
+                else if (sort == "priority")
+                {
+                    sortColumn = "b.priority";
+                    defaultSortDirection = "DESC";
                 }
                 else if (sort == "status")
                 {
-                    sqlBuilder.Append(" ORDER BY b.status ASC, b.created_at DESC");
+                    sortColumn = "b.status";
+                    defaultSortDirection = "ASC";
+                }
+                else if (sort == "assignee")
+                {
+                    sortColumn = "assignee.display_name COLLATE NOCASE";
+                    defaultSortDirection = "ASC";
+                }
+                else if (sort == "project")
+                {
+                    sortColumn = "p.name COLLATE NOCASE";
+                    defaultSortDirection = "ASC";
                 }
                 else if (sort == "updated")
                 {
-                    sqlBuilder.Append(" ORDER BY b.updated_at DESC");
+                    sortColumn = "b.updated_at";
+                    defaultSortDirection = "DESC";
                 }
-                else
+
+                string effectiveDirection = defaultSortDirection;
+                if (normalizedDirection.Length > 0)
                 {
-                    sqlBuilder.Append(" ORDER BY b.created_at DESC");
+                    effectiveDirection = normalizedDirection;
                 }
+                sqlBuilder.Append(" ORDER BY ");
+                sqlBuilder.Append(sortColumn);
+                sqlBuilder.Append(" ");
+                sqlBuilder.Append(effectiveDirection);
+                sqlBuilder.Append(", b.id DESC");
                 sqlBuilder.Append(" LIMIT $row_limit OFFSET $row_offset");
                 selectCommand.Parameters.AddWithValue("$row_limit", parsedLimit);
                 selectCommand.Parameters.AddWithValue("$row_offset", parsedOffset);
