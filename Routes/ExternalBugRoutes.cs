@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Text;
 using Microsoft.Data.Sqlite;
 using Flatline.Database;
 using Flatline.Http;
@@ -7,9 +8,14 @@ using Flatline.Models;
 
 namespace Flatline.Routes
 {
-    public class BugStatusUpdateRequest
+    public class ExternalBugUpdateRequest
     {
-        public eBugStatus Status;
+        // Sentinel: empty string means "no status change". Any other value
+        // must parse as a valid eBugStatus.
+        public string Status = "";
+        // Sentinel: -1 means "no assignment change". 0 means "unassign".
+        // >0 must refer to an existing user.
+        public long AssignedTo = -1;
     }
 
     public static class ExternalBugRoutes
@@ -84,7 +90,7 @@ namespace Flatline.Routes
             HttpResponseWriter.WriteJson(context, 200, commentList);
         }
 
-        public static void HandleUpdateExternalBugStatus(FlatlineHttpContext context, long id)
+        public static void HandleUpdateExternalBug(FlatlineHttpContext context, long id)
         {
             User keyOwner = ApiKeyRoutes.GetUserFromApiKey(context);
             if (keyOwner == null)
@@ -93,27 +99,73 @@ namespace Flatline.Routes
                 return;
             }
 
-            BugStatusUpdateRequest updateRequest = HttpRequestReader.ReadBodyAsJson<BugStatusUpdateRequest>(context);
+            ExternalBugUpdateRequest updateRequest = HttpRequestReader.ReadBodyAsJson<ExternalBugUpdateRequest>(context);
             if (updateRequest == null)
             {
                 HttpResponseWriter.WriteJson(context, 400, new { error = "Body is required." });
                 return;
             }
-            if (!Enum.IsDefined(typeof(eBugStatus), updateRequest.Status))
+
+            bool hasStatusChange = updateRequest.Status.Length > 0;
+            bool hasAssignmentChange = updateRequest.AssignedTo >= 0;
+            if (!hasStatusChange && !hasAssignmentChange)
             {
-                HttpResponseWriter.WriteJson(context, 400, new { error = "Invalid status." });
+                HttpResponseWriter.WriteJson(context, 400, new { error = "Nothing to update. Provide Status, AssignedTo, or both." });
                 return;
+            }
+
+            eBugStatus parsedStatus = eBugStatus.Open;
+            if (hasStatusChange)
+            {
+                if (!Enum.TryParse<eBugStatus>(updateRequest.Status, false, out parsedStatus))
+                {
+                    HttpResponseWriter.WriteJson(context, 400, new { error = "Invalid status." });
+                    return;
+                }
             }
 
             string nowIso = DateTime.UtcNow.ToString("o");
             SqliteConnection connection = SqliteConnectionFactory.OpenConnection();
             try
             {
+                if (hasAssignmentChange && updateRequest.AssignedTo > 0)
+                {
+                    SqliteCommand userCheck = connection.CreateCommand();
+                    userCheck.CommandText = "SELECT 1 FROM users WHERE id = $assigned_to;";
+                    userCheck.Parameters.AddWithValue("$assigned_to", updateRequest.AssignedTo);
+                    object userResult = userCheck.ExecuteScalar();
+                    if (userResult == null)
+                    {
+                        HttpResponseWriter.WriteJson(context, 400, new { error = "AssignedTo user not found." });
+                        return;
+                    }
+                }
+
+                StringBuilder updateSql = new StringBuilder();
+                updateSql.Append("UPDATE bugs SET updated_at = $updated_at");
                 SqliteCommand updateCommand = connection.CreateCommand();
-                updateCommand.CommandText = "UPDATE bugs SET status = $status, updated_at = $updated_at WHERE id = $id;";
-                updateCommand.Parameters.AddWithValue("$status", (int)updateRequest.Status);
                 updateCommand.Parameters.AddWithValue("$updated_at", nowIso);
+                if (hasStatusChange)
+                {
+                    updateSql.Append(", status = $status");
+                    updateCommand.Parameters.AddWithValue("$status", (int)parsedStatus);
+                }
+                if (hasAssignmentChange)
+                {
+                    if (updateRequest.AssignedTo == 0)
+                    {
+                        updateSql.Append(", assigned_to = NULL");
+                    }
+                    else
+                    {
+                        updateSql.Append(", assigned_to = $assigned_to");
+                        updateCommand.Parameters.AddWithValue("$assigned_to", updateRequest.AssignedTo);
+                    }
+                }
+                updateSql.Append(" WHERE id = $id;");
                 updateCommand.Parameters.AddWithValue("$id", id);
+                updateCommand.CommandText = updateSql.ToString();
+
                 int rowsAffected = updateCommand.ExecuteNonQuery();
                 if (rowsAffected == 0)
                 {
