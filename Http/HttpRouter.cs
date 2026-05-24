@@ -49,7 +49,7 @@ namespace Flatline.Http
             }
             if (method == "PUT" && TryMatchExternalBugId(path, out externalBugId))
             {
-                ExternalBugRoutes.HandleUpdateExternalBugStatus(context, externalBugId);
+                ExternalBugRoutes.HandleUpdateExternalBug(context, externalBugId);
                 return;
             }
             if (method == "POST" && TryMatchExternalBugCommentsPath(path, out externalBugId))
