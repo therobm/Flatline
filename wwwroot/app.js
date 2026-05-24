@@ -15,6 +15,8 @@ const State = {
     apiKeys: [],
     browseOffset: 0,
     browseSelectedIds: {},
+    browseSortField: "",
+    browseSortDirection: "",
     metadata: {
         Statuses: {},
         Priorities: {},
@@ -375,6 +377,19 @@ async function loadUsers() {
 
 async function loadProjects() {
     State.projects = await apiRequest("GET", "/api/projects");
+    populateProjectDropdowns();
+}
+
+function populateProjectDropdowns() {
+    const projectPairs = [];
+    const projectCount = State.projects.length;
+    for (let projectIndex = 0; projectIndex < projectCount; projectIndex++) {
+        const project = State.projects[projectIndex];
+        projectPairs.push({ value: String(project.Id), label: project.Name });
+    }
+    if (document.getElementById("browseProjectFilter")) {
+        createDropdownFilter("browseProjectFilter", "Project", projectPairs);
+    }
 }
 
 function fillProjectSelect(selectId, includePlaceholder, selectedId) {
@@ -796,10 +811,12 @@ async function loadBugSection(config) {
             }
         }
     }
-    if (config.sortSelectId) {
-        const sortElement = document.getElementById(config.sortSelectId);
-        if (sortElement && sortElement.value) {
-            queryParts.push("sort=" + encodeURIComponent(sortElement.value));
+    if (config.projectContainerId) {
+        const projectValues = readCheckboxGroup(config.projectContainerId);
+        if (projectValues.length === 0) {
+            abortEmpty = true;
+        } else {
+            queryParts.push("projectId=" + encodeURIComponent(projectValues.join(",")));
         }
     }
     if (abortEmpty) {
@@ -869,9 +886,15 @@ function renderBugRows(tableBodyId, emptyId, bugs) {
             selectionCell = "<td class=\"select-cell\"><input type=\"checkbox\" class=\"browse-row-checkbox\" data-bug-id=\"" + escapeHtml(bug.Id) + "\"" + checkedAttr + "></td>";
         }
 
+        let projectText = "";
+        if (bug.ProjectName) {
+            projectText = bug.ProjectName;
+        }
+
         row.innerHTML =
             selectionCell +
             "<td>" + escapeHtml(bug.Id) + "</td>" +
+            "<td>" + escapeHtml(projectText) + "</td>" +
             "<td>" + escapeHtml(bug.Title) + "</td>" +
             "<td><span class=\"badge badge-status-" + escapeHtml(bug.Status) + "\">" + escapeHtml(statusLabel(bug.Status)) + "</span></td>" +
             "<td><span class=\"badge badge-priority-" + escapeHtml(bug.Priority) + "\">" + escapeHtml(priorityLabel(bug.Priority)) + "</span></td>" +
@@ -964,18 +987,26 @@ async function refreshUserView() {
 const BrowsePageSize = 50;
 
 async function loadBrowseSection() {
+    const extraParams = {
+        limit: String(BrowsePageSize),
+        offset: String(State.browseOffset)
+    };
+    if (State.browseSortField) {
+        extraParams.sort = State.browseSortField;
+    }
+    if (State.browseSortDirection) {
+        extraParams.dir = State.browseSortDirection;
+    }
     const returnedCount = await loadBugSection({
         tableBodyId: "browseTbody",
         emptyId: "browseEmpty",
         statusContainerId: "browseStatusFilter",
         priorityContainerId: "browsePriorityFilter",
         assigneeContainerId: "browseAssigneeFilter",
-        sortSelectId: "browseSortFilter",
-        extraParams: {
-            limit: String(BrowsePageSize),
-            offset: String(State.browseOffset)
-        }
+        projectContainerId: "browseProjectFilter",
+        extraParams: extraParams
     });
+    refreshBrowseSortIndicators();
     renderBrowsePagination(returnedCount);
 }
 
@@ -984,6 +1015,62 @@ async function loadBrowseSection() {
 async function reloadBrowseFromFirstPage() {
     State.browseOffset = 0;
     await loadBrowseSection();
+}
+
+/* Click on a sortable column header in the Browse table. First click sorts
+ * by that field in the column's default direction; clicking the same column
+ * again flips the direction. The default direction is computed to match the
+ * backend's defaults (DESC for id/priority/updated, ASC for everything
+ * else). */
+function browseSortDefaultDirection(field) {
+    if (field === "id" || field === "priority" || field === "updated") {
+        return "desc";
+    }
+    return "asc";
+}
+
+async function handleBrowseSortHeaderClick(event) {
+    const headerCell = event.currentTarget;
+    const field = headerCell.dataset.sortField;
+    if (!field) {
+        return;
+    }
+    if (State.browseSortField === field) {
+        if (State.browseSortDirection === "asc") {
+            State.browseSortDirection = "desc";
+        } else {
+            State.browseSortDirection = "asc";
+        }
+    } else {
+        State.browseSortField = field;
+        State.browseSortDirection = browseSortDefaultDirection(field);
+    }
+    await reloadBrowseFromFirstPage();
+}
+
+function refreshBrowseSortIndicators() {
+    const headers = document.querySelectorAll("#browseView th.sortable");
+    const headerCount = headers.length;
+    for (let headerIndex = 0; headerIndex < headerCount; headerIndex++) {
+        const header = headers[headerIndex];
+        header.classList.remove("sorted-asc");
+        header.classList.remove("sorted-desc");
+        if (header.dataset.sortField === State.browseSortField && State.browseSortField) {
+            if (State.browseSortDirection === "asc") {
+                header.classList.add("sorted-asc");
+            } else {
+                header.classList.add("sorted-desc");
+            }
+        }
+    }
+}
+
+function wireBrowseSortHeaders() {
+    const headers = document.querySelectorAll("#browseView th.sortable");
+    const headerCount = headers.length;
+    for (let headerIndex = 0; headerIndex < headerCount; headerIndex++) {
+        headers[headerIndex].addEventListener("click", handleBrowseSortHeaderClick);
+    }
 }
 
 function renderBrowsePagination(returnedCount) {
@@ -2508,7 +2595,8 @@ function attachEventHandlers() {
     document.getElementById("browseStatusFilter").addEventListener("change", reloadBrowseAfterFilterChange);
     document.getElementById("browsePriorityFilter").addEventListener("change", reloadBrowseAfterFilterChange);
     document.getElementById("browseAssigneeFilter").addEventListener("change", reloadBrowseAfterFilterChange);
-    document.getElementById("browseSortFilter").addEventListener("change", reloadBrowseAfterFilterChange);
+    document.getElementById("browseProjectFilter").addEventListener("change", reloadBrowseAfterFilterChange);
+    wireBrowseSortHeaders();
     document.getElementById("browsePrevButton").addEventListener("click", handleBrowsePrevClick);
     document.getElementById("browseNextButton").addEventListener("click", handleBrowseNextClick);
     document.getElementById("browseSelectAll").addEventListener("change", handleSelectAllChange);

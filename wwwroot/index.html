@@ -65,6 +65,7 @@
                         <thead>
                             <tr>
                                 <th>#</th>
+                                <th>Project</th>
                                 <th>Title</th>
                                 <th>Status</th>
                                 <th>Priority</th>
@@ -87,6 +88,7 @@
                         <thead>
                             <tr>
                                 <th>#</th>
+                                <th>Project</th>
                                 <th>Title</th>
                                 <th>Status</th>
                                 <th>Priority</th>
@@ -109,6 +111,7 @@
                         <thead>
                             <tr>
                                 <th>#</th>
+                                <th>Project</th>
                                 <th>Title</th>
                                 <th>Status</th>
                                 <th>Priority</th>
@@ -139,6 +142,7 @@
                         <thead>
                             <tr>
                                 <th>#</th>
+                                <th>Project</th>
                                 <th>Title</th>
                                 <th>Status</th>
                                 <th>Priority</th>
@@ -165,6 +169,7 @@
                         <thead>
                             <tr>
                                 <th>#</th>
+                                <th>Project</th>
                                 <th>Title</th>
                                 <th>Status</th>
                                 <th>Priority</th>
@@ -187,14 +192,7 @@
                     <div class="checkbox-group" id="browseStatusFilter"></div>
                     <div class="checkbox-group" id="browsePriorityFilter"></div>
                     <div class="checkbox-group" id="browseAssigneeFilter"></div>
-                    <label>Sort
-                        <select id="browseSortFilter">
-                            <option value="">Newest first</option>
-                            <option value="updated">Recently updated</option>
-                            <option value="priority">Priority</option>
-                            <option value="status">Status</option>
-                        </select>
-                    </label>
+                    <div class="checkbox-group" id="browseProjectFilter"></div>
                 </div>
                 <div id="bulkActionToolbar" class="bulk-toolbar hidden">
                     <span id="bulkSelectionLabel" class="bulk-selection-label">0 selected</span>
@@ -222,12 +220,13 @@
                     <thead>
                         <tr>
                             <th><input type="checkbox" id="browseSelectAll"></th>
-                            <th>#</th>
-                            <th>Title</th>
-                            <th>Status</th>
-                            <th>Priority</th>
-                            <th>Assignee</th>
-                            <th>Updated</th>
+                            <th class="sortable" data-sort-field="id">#</th>
+                            <th class="sortable" data-sort-field="project">Project</th>
+                            <th class="sortable" data-sort-field="title">Title</th>
+                            <th class="sortable" data-sort-field="status">Status</th>
+                            <th class="sortable" data-sort-field="priority">Priority</th>
+                            <th class="sortable" data-sort-field="assignee">Assignee</th>
+                            <th class="sortable" data-sort-field="updated">Updated</th>
                         </tr>
                     </thead>
                     <tbody id="browseTbody"></tbody>
