@@ -1109,3 +1109,21 @@ table.bug-table td:first-child {
     width: 2em;
     text-align: center;
 }
+
+/* Sortable column headers in the Browse table. */
+.bug-table th.sortable {
+    cursor: pointer;
+    user-select: none;
+}
+
+.bug-table th.sortable:hover {
+    background-color: var(--color-chrome);
+}
+
+.bug-table th.sortable.sorted-asc::after {
+    content: " \25B2";
+}
+
+.bug-table th.sortable.sorted-desc::after {
+    content: " \25BC";
+}
