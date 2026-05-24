@@ -375,6 +375,14 @@ form select {
     border-radius: var(--radius);
 }
 
+/* Lock textarea drag-resize to the vertical axis. Default `resize: both`
+ * lets users widen a textarea past its container and break the page
+ * layout (Flatline #76). Vertical-only keeps the width = container
+ * width while still allowing height adjustment. */
+form textarea {
+    resize: vertical;
+}
+
 form input:focus,
 form textarea:focus,
 form select:focus {
