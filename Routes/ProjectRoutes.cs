@@ -27,7 +27,11 @@ namespace Flatline.Routes
                 HttpResponseWriter.WriteJson(context, 401, new { error = "Not authenticated." });
                 return;
             }
+            ListProjects(context);
+        }
 
+        public static void ListProjects(FlatlineHttpContext context)
+        {
             List<Project> projectList = new List<Project>();
             SqliteConnection connection = SqliteConnectionFactory.OpenConnection();
             try

@@ -36,6 +36,7 @@ require a logged-in user.
 
 | Method | Path                                | Purpose                              |
 |--------|-------------------------------------|--------------------------------------|
+| GET    | `/api/external/projects`            | List projects (id, name, etc.).      |
 | POST   | `/api/external/bugs`                | Create a new bug.                    |
 | GET    | `/api/external/bugs`                | List bugs (filterable).              |
 | GET    | `/api/external/bugs/{id}`           | Fetch one bug by id.                 |
@@ -292,20 +293,52 @@ curl -k -X POST "https://<your-flatline-host>:5443/api/external/bugs/42/comments
   -d '{"Text":"Fixed in PR https://github.com/therobm/Flatline/pull/123."}'
 ```
 
-## Discovering project and version IDs
+## List projects
 
-The external endpoint requires a numeric `ProjectId`. To look up project and
-version IDs without a session cookie, an admin can read them out of the
-Settings → Projects UI, or query the SQLite database directly:
-
-```sql
-SELECT id, name FROM projects;
-SELECT id, project_id, name FROM versions;
+```
+GET /api/external/projects
+X-API-Key: flk_<rest-of-key>
 ```
 
-If the calling tool only knows a project *name*, the recommended pattern is
-to record the resolved numeric ID alongside the name in the tool's own
-configuration so subsequent calls can skip the lookup.
+Returns a JSON array of every project the server knows about, ordered
+by name. Use this when you only know a project *name* and need to
+resolve it to the numeric `ProjectId` that the bug endpoints require.
+
+### Response
+
+```json
+[
+  {
+    "Id": 1,
+    "Name": "Flatline",
+    "CreatedAt": "2026-05-23T08:00:00.0000000Z",
+    "VersionCount": 0
+  }
+]
+```
+
+### Errors
+
+| Status | Body                                          | Cause                                  |
+|--------|-----------------------------------------------|----------------------------------------|
+| 401    | `{"error":"Invalid or missing API key."}`     | `X-API-Key` header missing or unknown. |
+
+### Example
+
+```bash
+curl -k "https://<your-flatline-host>:5443/api/external/projects" \
+  -H "X-API-Key: flk_REPLACE_ME"
+```
+
+## Discovering version IDs
+
+The bug endpoints accept optional `FoundInVersionId` / `FixedInVersionId`.
+Version IDs are not currently exposed on the external API; an admin can
+read them from the Settings → Projects UI or query the SQLite database:
+
+```sql
+SELECT id, project_id, name FROM versions;
+```
 
 ## Working example (curl)
 
