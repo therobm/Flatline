@@ -68,7 +68,18 @@ function renderMarkdownSafe(rawText) {
                 lineIndex++;
             }
             continue;
-        }
+		}
+
+		/* Indented code block: four or more leading spaces. */
+		if (currentLine.length >= 4 && currentLine.substring(0, 4) === "    ") {
+			const codeLines = [];
+			while (lineIndex < lineCount && lines[lineIndex].length >= 4 && lines[lineIndex].substring(0, 4) === "    ") {
+				codeLines.push(lines[lineIndex].substring(4));
+				lineIndex++;
+			}
+			outputParts.push("<pre><code>" + codeLines.join("\n") + "</code></pre>");
+			continue;
+		}
 
         /* Blank line: just consume it; paragraph break is implicit
          * because we close the current paragraph when we see one. */
@@ -1390,9 +1401,9 @@ async function renderBugDetail() {
     document.getElementById("detailBugUpdated").textContent = formatTimestamp(bug.UpdatedAt);
     document.getElementById("detailBugError").textContent = "";
 
-    /* Always start in edit mode when (re)entering a bug. The preview
-     * toggle button manages the swap from here. */
-    showDescriptionEditor();
+	/* Start in preview mode when viewing a bug. The toggle button
+	* switches to edit on demand. */
+	showDescriptionPreview();
 
     renderRelatedBugs();
     renderComments();
