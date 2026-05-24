@@ -378,9 +378,13 @@ form select {
 /* Lock textarea drag-resize to the vertical axis. Default `resize: both`
  * lets users widen a textarea past its container and break the page
  * layout (Flatline #76). Vertical-only keeps the width = container
- * width while still allowing height adjustment. */
-form textarea {
+ * width while still allowing height adjustment. Applied to every
+ * textarea (not just `form textarea`) because the bug detail view
+ * uses a `<div class="bug-detail-form">` rather than a `<form>`
+ * element. */
+textarea {
     resize: vertical;
+    max-width: 100%;
 }
 
 form input:focus,
