@@ -191,54 +191,57 @@
                 <div class="view-header">
                     <h2>Browse</h2>
                 </div>
-                <div class="filters">
-                    <div class="checkbox-group" id="browseStatusFilter"></div>
-                    <div class="checkbox-group" id="browsePriorityFilter"></div>
-                    <div class="checkbox-group" id="browseAssigneeFilter"></div>
-                    <div class="checkbox-group" id="browseProjectFilter"></div>
-                </div>
-                <div id="bulkActionToolbar" class="bulk-toolbar hidden">
-                    <span id="bulkSelectionLabel" class="bulk-selection-label">0 selected</span>
-                    <label>Status
-                        <select id="bulkStatusSelect">
-                            <option value="">(no change)</option>
-                        </select>
-                    </label>
-                    <label>Priority
-                        <select id="bulkPrioritySelect">
-                            <option value="">(no change)</option>
-                        </select>
-                    </label>
-                    <label>Assignee
-                        <select id="bulkAssigneeSelect">
-                            <option value="">(no change)</option>
-                            <option value="0">Unassigned</option>
-                        </select>
-                    </label>
-                    <button type="button" id="bulkApplyButton">Apply</button>
-                    <button type="button" id="bulkClearButton" class="edit-button">Clear selection</button>
-                    <span id="bulkActionError" class="error-message"></span>
-                </div>
-                <table class="bug-table">
-                    <thead>
-                        <tr>
-                            <th><input type="checkbox" id="browseSelectAll"></th>
-                            <th class="sortable" data-sort-field="id">#</th>
-                            <th class="sortable" data-sort-field="project">Project</th>
-                            <th class="sortable" data-sort-field="title">Title</th>
-                            <th class="sortable" data-sort-field="status">Status</th>
-                            <th class="sortable" data-sort-field="priority">Priority</th>
-                            <th class="sortable" data-sort-field="assignee">Assignee</th>
-                            <th class="sortable" data-sort-field="updated">Updated</th>
-                        </tr>
-                    </thead>
-                    <tbody id="browseTbody"></tbody>
-                </table>
-                <div id="browseEmpty" class="empty-message hidden">No bugs found.</div>
-                <div id="browsePagination" class="pagination hidden">
-                    <button type="button" id="browsePrevButton">&larr; Prev</button>
-                    <span id="browsePageLabel">Page 1</span>
-                    <button type="button" id="browseNextButton">Next &rarr;</button>
+                <div class="bug-section">
+                    <h3>Bugs</h3>
+                    <div class="filters">
+                        <div class="checkbox-group" id="browseStatusFilter"></div>
+                        <div class="checkbox-group" id="browsePriorityFilter"></div>
+                        <div class="checkbox-group" id="browseAssigneeFilter"></div>
+                        <div class="checkbox-group" id="browseProjectFilter"></div>
+                    </div>
+                    <div id="bulkActionToolbar" class="bulk-toolbar hidden">
+                        <span id="bulkSelectionLabel" class="bulk-selection-label">0 selected</span>
+                        <label>Status
+                            <select id="bulkStatusSelect">
+                                <option value="">(no change)</option>
+                            </select>
+                        </label>
+                        <label>Priority
+                            <select id="bulkPrioritySelect">
+                                <option value="">(no change)</option>
+                            </select>
+                        </label>
+                        <label>Assignee
+                            <select id="bulkAssigneeSelect">
+                                <option value="">(no change)</option>
+                                <option value="0">Unassigned</option>
+                            </select>
+                        </label>
+                        <button type="button" id="bulkApplyButton">Apply</button>
+                        <button type="button" id="bulkClearButton" class="edit-button">Clear selection</button>
+                        <span id="bulkActionError" class="error-message"></span>
+                    </div>
+                    <table class="bug-table">
+                        <thead>
+                            <tr>
+                                <th><input type="checkbox" id="browseSelectAll"></th>
+                                <th class="sortable" data-sort-field="id">#</th>
+                                <th class="sortable" data-sort-field="project">Project</th>
+                                <th class="sortable" data-sort-field="title">Title</th>
+                                <th class="sortable" data-sort-field="status">Status</th>
+                                <th class="sortable" data-sort-field="priority">Priority</th>
+                                <th class="sortable" data-sort-field="assignee">Assignee</th>
+                                <th class="sortable" data-sort-field="updated">Updated</th>
+                            </tr>
+                        </thead>
+                        <tbody id="browseTbody"></tbody>
+                    </table>
+                    <div id="browseEmpty" class="empty-message hidden">No bugs found.</div>
+                    <div id="browsePagination" class="pagination hidden">
+                        <button type="button" id="browsePrevButton">&larr; Prev</button>
+                        <span id="browsePageLabel">Page 1</span>
+                        <button type="button" id="browseNextButton">Next &rarr;</button>
+                    </div>
                 </div>
             </section>
 
