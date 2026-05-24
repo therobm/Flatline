@@ -58,6 +58,12 @@ namespace Flatline.Http
                 return;
             }
 
+            if (method == "GET" && path == "/api/external/projects")
+            {
+                ExternalProjectRoutes.HandleListExternalProjects(context);
+                return;
+            }
+
             if (method == "GET" && path == "/api/api-keys")
             {
                 ApiKeyRoutes.HandleListApiKeys(context);
