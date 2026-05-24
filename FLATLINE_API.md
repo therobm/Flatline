@@ -40,7 +40,7 @@ require a logged-in user.
 | POST   | `/api/external/bugs`                | Create a new bug.                    |
 | GET    | `/api/external/bugs`                | List bugs (filterable).              |
 | GET    | `/api/external/bugs/{id}`           | Fetch one bug by id.                 |
-| PUT    | `/api/external/bugs/{id}`           | Change a bug's status.               |
+| PUT    | `/api/external/bugs/{id}`           | Change a bug's status or assignee.   |
 | POST   | `/api/external/bugs/{id}/comments`  | Post a comment on a bug.             |
 | GET    | `/api/external/bugs/{id}/comments`  | List comments on a bug.              |
 
@@ -200,7 +200,7 @@ curl -k "https://<your-flatline-host>:5443/api/external/bugs/42" \
   -H "X-API-Key: flk_REPLACE_ME"
 ```
 
-## Change a bug's status
+## Change a bug's status or assignee
 
 ```
 PUT /api/external/bugs/{id}
@@ -208,15 +208,19 @@ Content-Type: application/json
 X-API-Key: flk_<rest-of-key>
 ```
 
-Scoped intentionally narrow: this endpoint only updates `Status`. Other
-fields (title, priority, assignee, project, versions) require the
-session-cookie `PUT /api/bugs/{id}` from the web UI.
+Updates `Status`, `AssignedTo`, or both. Other fields (title, priority,
+project, versions) still require the session-cookie `PUT /api/bugs/{id}`
+from the web UI.
 
 ### Request body
 
-| Field    | Type   | Required | Notes                              |
-|----------|--------|----------|------------------------------------|
-| `Status` | string | yes      | One of the status enum values.     |
+| Field        | Type    | Required                         | Notes                                                                 |
+|--------------|---------|----------------------------------|-----------------------------------------------------------------------|
+| `Status`     | string  | one of Status / AssignedTo, yes  | One of the status enum values. Omit (or send `""`) to leave unchanged.|
+| `AssignedTo` | integer | one of Status / AssignedTo, yes  | User id. `0` unassigns. Omit (or send `-1`) to leave unchanged.       |
+
+At least one of `Status` or `AssignedTo` must be a real change. A body
+with neither (or both at sentinel values) returns 400.
 
 ### Response
 
@@ -225,20 +229,42 @@ create/get responses.
 
 ### Errors
 
-| Status | Body                                          | Cause                                     |
-|--------|-----------------------------------------------|-------------------------------------------|
-| 400    | `{"error":"Body is required."}`               | Empty/invalid JSON body.                  |
-| 400    | `{"error":"Invalid status."}`                 | `Status` is not one of the enum values.   |
-| 401    | `{"error":"Invalid or missing API key."}`     | `X-API-Key` header missing or unknown.    |
-| 404    | `{"error":"Bug not found."}`                  | No bug with that id.                      |
+| Status | Body                                                                 | Cause                                     |
+|--------|----------------------------------------------------------------------|-------------------------------------------|
+| 400    | `{"error":"Body is required."}`                                      | Empty/invalid JSON body.                  |
+| 400    | `{"error":"Nothing to update. Provide Status, AssignedTo, or both."}`| Body omits both fields.                   |
+| 400    | `{"error":"Invalid status."}`                                        | `Status` is not one of the enum values.   |
+| 400    | `{"error":"AssignedTo user not found."}`                             | `AssignedTo` > 0 but no such user id.     |
+| 401    | `{"error":"Invalid or missing API key."}`                            | `X-API-Key` header missing or unknown.    |
+| 404    | `{"error":"Bug not found."}`                                         | No bug with that id.                      |
 
-### Example (close a bug)
+### Examples
+
+Close a bug:
 
 ```bash
 curl -k -X PUT "https://<your-flatline-host>:5443/api/external/bugs/42" \
   -H "Content-Type: application/json" \
   -H "X-API-Key: flk_REPLACE_ME" \
   -d '{"Status":"Closed"}'
+```
+
+Assign a bug to user 2:
+
+```bash
+curl -k -X PUT "https://<your-flatline-host>:5443/api/external/bugs/42" \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: flk_REPLACE_ME" \
+  -d '{"AssignedTo":2}'
+```
+
+Unassign and close in one call:
+
+```bash
+curl -k -X PUT "https://<your-flatline-host>:5443/api/external/bugs/42" \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: flk_REPLACE_ME" \
+  -d '{"Status":"Closed","AssignedTo":0}'
 ```
 
 ## Post a comment on a bug
