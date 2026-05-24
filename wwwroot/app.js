@@ -2637,7 +2637,6 @@ function attachEventHandlers() {
     document.getElementById("bulkApplyButton").addEventListener("click", handleBulkApplyClick);
     document.getElementById("bulkClearButton").addEventListener("click", handleBulkClearClick);
 
-    document.getElementById("browseNewBugButton").addEventListener("click", handleNewBugClick);
     document.getElementById("backToListButton").addEventListener("click", handleBackToListClick);
     document.getElementById("bugProject").addEventListener("change", handleBugProjectChange);
     document.getElementById("detailBugProject").addEventListener("change", handleDetailBugProjectChange);
