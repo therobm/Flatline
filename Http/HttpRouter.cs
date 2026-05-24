@@ -57,6 +57,11 @@ namespace Flatline.Http
                 ExternalBugRoutes.HandleCreateExternalBugComment(context, externalBugId);
                 return;
             }
+            if (method == "GET" && TryMatchExternalBugCommentsPath(path, out externalBugId))
+            {
+                ExternalBugRoutes.HandleListExternalBugComments(context, externalBugId);
+                return;
+            }
 
             if (method == "GET" && path == "/api/external/projects")
             {

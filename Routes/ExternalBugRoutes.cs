@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Microsoft.Data.Sqlite;
 using Flatline.Database;
 using Flatline.Http;
@@ -69,6 +70,18 @@ namespace Flatline.Routes
                 return;
             }
             CommentRoutes.CreateCommentForUser(context, keyOwner, bugId);
+        }
+
+        public static void HandleListExternalBugComments(FlatlineHttpContext context, long bugId)
+        {
+            User keyOwner = ApiKeyRoutes.GetUserFromApiKey(context);
+            if (keyOwner == null)
+            {
+                HttpResponseWriter.WriteJson(context, 401, new { error = "Invalid or missing API key." });
+                return;
+            }
+            List<Comment> commentList = CommentRoutes.LoadCommentsForBug(bugId);
+            HttpResponseWriter.WriteJson(context, 200, commentList);
         }
 
         public static void HandleUpdateExternalBugStatus(FlatlineHttpContext context, long id)
