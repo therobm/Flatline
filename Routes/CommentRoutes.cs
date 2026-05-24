@@ -23,6 +23,12 @@ namespace Flatline.Routes
                 return;
             }
 
+            List<Comment> commentList = LoadCommentsForBug(bugId);
+            HttpResponseWriter.WriteJson(context, 200, commentList);
+        }
+
+        public static List<Comment> LoadCommentsForBug(long bugId)
+        {
             List<Comment> commentList = new List<Comment>();
             SqliteConnection connection = SqliteConnectionFactory.OpenConnection();
             try
@@ -59,8 +65,7 @@ namespace Flatline.Routes
             {
                 connection.Close();
             }
-
-            HttpResponseWriter.WriteJson(context, 200, commentList);
+            return commentList;
         }
 
         public static void HandleCreateComment(FlatlineHttpContext context, long bugId)
