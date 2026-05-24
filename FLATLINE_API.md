@@ -42,6 +42,7 @@ require a logged-in user.
 | GET    | `/api/external/bugs/{id}`           | Fetch one bug by id.                 |
 | PUT    | `/api/external/bugs/{id}`           | Change a bug's status.               |
 | POST   | `/api/external/bugs/{id}/comments`  | Post a comment on a bug.             |
+| GET    | `/api/external/bugs/{id}/comments`  | List comments on a bug.              |
 
 ## Create a bug
 
@@ -291,6 +292,31 @@ curl -k -X POST "https://<your-flatline-host>:5443/api/external/bugs/42/comments
   -H "Content-Type: application/json" \
   -H "X-API-Key: flk_REPLACE_ME" \
   -d '{"Text":"Fixed in PR https://github.com/therobm/Flatline/pull/123."}'
+```
+
+## List comments on a bug
+
+```
+GET /api/external/bugs/{id}/comments
+X-API-Key: flk_<rest-of-key>
+```
+
+Returns every comment on the bug as a JSON array, ordered oldest-first
+by `CreatedAt`. Each entry has the same shape as the create-comment
+response (above). An unknown bug id returns an empty array rather than
+a 404.
+
+### Errors
+
+| Status | Body                                          | Cause                                  |
+|--------|-----------------------------------------------|----------------------------------------|
+| 401    | `{"error":"Invalid or missing API key."}`     | `X-API-Key` header missing or unknown. |
+
+### Example
+
+```bash
+curl -k "https://<your-flatline-host>:5443/api/external/bugs/42/comments" \
+  -H "X-API-Key: flk_REPLACE_ME"
 ```
 
 ## List projects
