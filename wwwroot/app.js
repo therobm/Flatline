@@ -15,8 +15,6 @@ const State = {
     apiKeys: [],
     browseOffset: 0,
     browseSelectedIds: {},
-    browseSortField: "",
-    browseSortDirection: "",
     metadata: {
         Statuses: {},
         Priorities: {},
@@ -838,6 +836,14 @@ async function loadBugSection(config) {
         }
     }
 
+    const sortEntry = TableSorts[config.tableBodyId];
+    if (sortEntry && sortEntry.field) {
+        queryParts.push("sort=" + encodeURIComponent(sortEntry.field));
+        if (sortEntry.direction) {
+            queryParts.push("dir=" + encodeURIComponent(sortEntry.direction));
+        }
+    }
+
     let queryString = "";
     if (queryParts.length > 0) {
         queryString = "?" + queryParts.join("&");
@@ -849,6 +855,7 @@ async function loadBugSection(config) {
 }
 
 function renderBugRows(tableBodyId, emptyId, bugs) {
+    refreshSortIndicators(tableBodyId);
     const tableBody = document.getElementById(tableBodyId);
     const emptyElement = document.getElementById(emptyId);
     tableBody.innerHTML = "";
@@ -987,16 +994,6 @@ async function refreshUserView() {
 const BrowsePageSize = 50;
 
 async function loadBrowseSection() {
-    const extraParams = {
-        limit: String(BrowsePageSize),
-        offset: String(State.browseOffset)
-    };
-    if (State.browseSortField) {
-        extraParams.sort = State.browseSortField;
-    }
-    if (State.browseSortDirection) {
-        extraParams.dir = State.browseSortDirection;
-    }
     const returnedCount = await loadBugSection({
         tableBodyId: "browseTbody",
         emptyId: "browseEmpty",
@@ -1004,9 +1001,11 @@ async function loadBrowseSection() {
         priorityContainerId: "browsePriorityFilter",
         assigneeContainerId: "browseAssigneeFilter",
         projectContainerId: "browseProjectFilter",
-        extraParams: extraParams
+        extraParams: {
+            limit: String(BrowsePageSize),
+            offset: String(State.browseOffset)
+        }
     });
-    refreshBrowseSortIndicators();
     renderBrowsePagination(returnedCount);
 }
 
@@ -1017,59 +1016,87 @@ async function reloadBrowseFromFirstPage() {
     await loadBrowseSection();
 }
 
-/* Click on a sortable column header in the Browse table. First click sorts
- * by that field in the column's default direction; clicking the same column
- * again flips the direction. The default direction is computed to match the
- * backend's defaults (DESC for id/priority/updated, ASC for everything
- * else). */
-function browseSortDefaultDirection(field) {
+/* One sort entry per sortable table, keyed by its tbody id. Built up by
+ * registerSortableTable() at startup and read by loadBugSection() so each
+ * table's last-clicked column survives reloads. */
+const TableSorts = {};
+
+/* Backend default direction per sort field. Kept in lockstep with the
+ * server-side defaults in BugRoutes.cs so the indicator matches what the
+ * API actually returned. */
+function sortDefaultDirection(field) {
     if (field === "id" || field === "priority" || field === "updated") {
         return "desc";
     }
     return "asc";
 }
 
-async function handleBrowseSortHeaderClick(event) {
+/* Wire a sortable bug table. Looks up the .sortable headers in the same
+ * <table> as the given tbody and attaches click handlers. refreshFunction
+ * is called after each click to re-fetch and re-render rows. */
+function registerSortableTable(tableBodyId, refreshFunction) {
+    TableSorts[tableBodyId] = { field: "", direction: "", refreshFunction: refreshFunction };
+    const tableBody = document.getElementById(tableBodyId);
+    if (!tableBody) {
+        return;
+    }
+    const tableElement = tableBody.closest("table");
+    if (!tableElement) {
+        return;
+    }
+    const headers = tableElement.querySelectorAll("th.sortable");
+    const headerCount = headers.length;
+    for (let headerIndex = 0; headerIndex < headerCount; headerIndex++) {
+        const header = headers[headerIndex];
+        header.dataset.targetTbody = tableBodyId;
+        header.addEventListener("click", handleSortableHeaderClick);
+    }
+}
+
+async function handleSortableHeaderClick(event) {
     const headerCell = event.currentTarget;
+    const tableBodyId = headerCell.dataset.targetTbody;
     const field = headerCell.dataset.sortField;
     if (!field) {
         return;
     }
-    if (State.browseSortField === field) {
-        if (State.browseSortDirection === "asc") {
-            State.browseSortDirection = "desc";
+    const entry = TableSorts[tableBodyId];
+    if (!entry) {
+        return;
+    }
+    if (entry.field === field) {
+        if (entry.direction === "asc") {
+            entry.direction = "desc";
         } else {
-            State.browseSortDirection = "asc";
+            entry.direction = "asc";
         }
     } else {
-        State.browseSortField = field;
-        State.browseSortDirection = browseSortDefaultDirection(field);
+        entry.field = field;
+        entry.direction = sortDefaultDirection(field);
     }
-    await reloadBrowseFromFirstPage();
+    if (entry.refreshFunction) {
+        await entry.refreshFunction();
+    }
 }
 
-function refreshBrowseSortIndicators() {
-    const headers = document.querySelectorAll("#browseView th.sortable");
+function refreshSortIndicators(tableBodyId) {
+    const entry = TableSorts[tableBodyId];
+    if (!entry) {
+        return;
+    }
+    const headers = document.querySelectorAll('th.sortable[data-target-tbody="' + tableBodyId + '"]');
     const headerCount = headers.length;
     for (let headerIndex = 0; headerIndex < headerCount; headerIndex++) {
         const header = headers[headerIndex];
         header.classList.remove("sorted-asc");
         header.classList.remove("sorted-desc");
-        if (header.dataset.sortField === State.browseSortField && State.browseSortField) {
-            if (State.browseSortDirection === "asc") {
+        if (entry.field && header.dataset.sortField === entry.field) {
+            if (entry.direction === "asc") {
                 header.classList.add("sorted-asc");
             } else {
                 header.classList.add("sorted-desc");
             }
         }
-    }
-}
-
-function wireBrowseSortHeaders() {
-    const headers = document.querySelectorAll("#browseView th.sortable");
-    const headerCount = headers.length;
-    for (let headerIndex = 0; headerIndex < headerCount; headerIndex++) {
-        headers[headerIndex].addEventListener("click", handleBrowseSortHeaderClick);
     }
 }
 
@@ -2540,6 +2567,7 @@ async function onLoggedIn() {
     showHeader(true);
     await loadMetadata();
     await loadUsers();
+    await loadProjects();
     State.bugDetailReturnTo = "homeView";
     showView("homeView");
     setActiveSidebarItem("navHomeButton");
@@ -2596,7 +2624,13 @@ function attachEventHandlers() {
     document.getElementById("browsePriorityFilter").addEventListener("change", reloadBrowseAfterFilterChange);
     document.getElementById("browseAssigneeFilter").addEventListener("change", reloadBrowseAfterFilterChange);
     document.getElementById("browseProjectFilter").addEventListener("change", reloadBrowseAfterFilterChange);
-    wireBrowseSortHeaders();
+
+    registerSortableTable("homeNewTbody", refreshHomeNewSection);
+    registerSortableTable("homeModifiedTbody", refreshHomeModifiedSection);
+    registerSortableTable("homeUnassignedTbody", refreshHomeUnassignedSection);
+    registerSortableTable("userCreatedTbody", refreshUserCreatedSection);
+    registerSortableTable("userAssignedTbody", refreshUserAssignedSection);
+    registerSortableTable("browseTbody", reloadBrowseFromFirstPage);
     document.getElementById("browsePrevButton").addEventListener("click", handleBrowsePrevClick);
     document.getElementById("browseNextButton").addEventListener("click", handleBrowseNextClick);
     document.getElementById("browseSelectAll").addEventListener("change", handleSelectAllChange);
