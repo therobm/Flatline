@@ -102,6 +102,8 @@
     --color-status-resolved: #3a5878;
     --color-status-closed: #5a6068;
     --color-status-wontfix: #7a4060;
+    --color-status-asdesigned: #4a6850;
+    --color-status-needsreview: #a06820;
 
     /* Priority (inline colored text) */
     --color-priority-critical: #a02830;

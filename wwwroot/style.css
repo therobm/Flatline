@@ -626,11 +626,13 @@ table.bug-table td:first-child {
     letter-spacing: 0;
 }
 
-.badge-status-Open       { color: var(--color-status-open); }
-.badge-status-InProgress { color: var(--color-status-inprogress); }
-.badge-status-Resolved   { color: var(--color-status-resolved); }
-.badge-status-Closed     { color: var(--color-status-closed); }
-.badge-status-WontFix    { color: var(--color-status-wontfix); }
+.badge-status-Open         { color: var(--color-status-open); }
+.badge-status-InProgress   { color: var(--color-status-inprogress); }
+.badge-status-Resolved     { color: var(--color-status-resolved); }
+.badge-status-Closed       { color: var(--color-status-closed); }
+.badge-status-WontFix      { color: var(--color-status-wontfix); }
+.badge-status-AsDesigned   { color: var(--color-status-asdesigned); }
+.badge-status-NeedsReview  { color: var(--color-status-needsreview); }
 
 .badge-priority-Critical { color: var(--color-priority-critical); }
 .badge-priority-High     { color: var(--color-priority-high); }

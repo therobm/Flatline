@@ -15,6 +15,8 @@ namespace Flatline.Models
             StatusLabels[eBugStatus.Resolved] = "Resolved";
             StatusLabels[eBugStatus.Closed] = "Closed";
             StatusLabels[eBugStatus.WontFix] = "Won't fix";
+            StatusLabels[eBugStatus.AsDesigned] = "As designed";
+            StatusLabels[eBugStatus.NeedsReview] = "Needs review";
 
             PriorityLabels = new Dictionary<eBugPriority, string>();
             PriorityLabels[eBugPriority.Critical] = "Critical";

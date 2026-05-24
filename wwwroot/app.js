@@ -270,7 +270,7 @@ async function loadMetadata() {
          * the Closed option to bring them back. The other status filters
          * keep every option checked on first paint. */
         if (filterId === "browseStatusFilter") {
-            createDropdownFilterWithDefaults(filterId, "Status", statusPairs, ["Closed"]);
+            createDropdownFilterWithDefaults(filterId, "Status", statusPairs, ["Closed", "AsDesigned"]);
         } else {
             createDropdownFilter(filterId, "Status", statusPairs);
         }
