@@ -24,8 +24,23 @@ namespace Flatline.Routes
 
     public static class AuthRoutes
     {
-        private const string SessionCookieName = "flatline_session";
+        /* Two cookie names, one per scheme, so the Secure attribute can match
+         * the request scheme without the two schemes fighting over the same
+         * cookie. A cookie marked Secure from an HTTPS response cannot be
+         * overwritten by a later HTTP response (Chrome's "Leave Secure Cookies
+         * Alone"); using a distinct name for the HTTP cookie sidesteps that. */
+        private const string SessionCookieNameHttp = "flatline_session";
+        private const string SessionCookieNameHttps = "flatline_session_s";
         private const int SessionLifetimeDays = 30;
+
+        private static string SchemeSessionCookieName(FlatlineHttpContext context)
+        {
+            if (context.IsHttps)
+            {
+                return SessionCookieNameHttps;
+            }
+            return SessionCookieNameHttp;
+        }
 
         /* After this many consecutive failed logins from one IP, the IP is
          * locked out for LoginLockoutSeconds. Counter resets on success. */
@@ -117,7 +132,7 @@ namespace Flatline.Routes
                 insertCommand.Parameters.AddWithValue("$created_at", DateTime.UtcNow.ToString("o"));
                 insertCommand.ExecuteNonQuery();
 
-                HttpRequestReader.SetCookie(context, SessionCookieName, sessionToken, DateTime.UtcNow.AddDays(SessionLifetimeDays), true, "/");
+                HttpRequestReader.SetCookie(context, SchemeSessionCookieName(context), sessionToken, DateTime.UtcNow.AddDays(SessionLifetimeDays), true, "/");
 
                 User user = new User();
                 user.Id = userId;
@@ -183,7 +198,7 @@ namespace Flatline.Routes
 
         public static void HandleLogout(FlatlineHttpContext context)
         {
-            string sessionToken = HttpRequestReader.GetCookieValue(context, SessionCookieName);
+            string sessionToken = HttpRequestReader.GetCookieValue(context, SchemeSessionCookieName(context));
             if (!string.IsNullOrEmpty(sessionToken))
             {
                 SqliteConnection connection = SqliteConnectionFactory.OpenConnection();
@@ -199,7 +214,7 @@ namespace Flatline.Routes
                     connection.Close();
                 }
             }
-            HttpRequestReader.DeleteCookie(context, SessionCookieName, "/");
+            HttpRequestReader.DeleteCookie(context, SchemeSessionCookieName(context), "/");
             HttpResponseWriter.WriteJson(context, 200, new { ok = true });
         }
 
@@ -216,7 +231,7 @@ namespace Flatline.Routes
 
         public static User GetCurrentUser(FlatlineHttpContext context)
         {
-            string sessionToken = HttpRequestReader.GetCookieValue(context, SessionCookieName);
+            string sessionToken = HttpRequestReader.GetCookieValue(context, SchemeSessionCookieName(context));
             if (string.IsNullOrEmpty(sessionToken))
             {
                 return null;

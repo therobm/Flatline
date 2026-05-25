@@ -57,12 +57,12 @@ namespace Flatline.Http
 
         public static void SetCookie(FlatlineHttpContext context, string name, string value, DateTime expiresUtc, bool httpOnly, string path)
         {
-            context.Response.SetCookie(name, value, expiresUtc, httpOnly, path);
+            context.Response.SetCookie(name, value, expiresUtc, httpOnly, path, context.IsHttps);
         }
 
         public static void DeleteCookie(FlatlineHttpContext context, string name, string path)
         {
-            context.Response.SetCookie(name, "", DateTime.UtcNow.AddDays(-1), true, path);
+            context.Response.SetCookie(name, "", DateTime.UtcNow.AddDays(-1), true, path, context.IsHttps);
         }
     }
 }

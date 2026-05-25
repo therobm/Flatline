@@ -14,13 +14,7 @@ namespace Flatline.Http
         public byte[] BodyBytes = new byte[0];
         public bool KeepAlive = true;
 
-        /* No Secure attribute: Flatline is intentionally dual-scheme (HTTP on
-         * port 5099, HTTPS on port 5443) and a session cookie marked Secure
-         * from an HTTPS response cannot be overwritten by a subsequent HTTP
-         * response (Chrome's "Leave Secure Cookies Alone"), which leaves HTTP
-         * logins unable to authenticate when the user has previously visited
-         * over HTTPS. HttpOnly + SameSite=Lax stays. */
-        public void SetCookie(string name, string value, DateTime expiresUtc, bool httpOnly, string path)
+        public void SetCookie(string name, string value, DateTime expiresUtc, bool httpOnly, string path, bool secure)
         {
             StringBuilder cookieBuilder = new StringBuilder();
             cookieBuilder.Append(name);
@@ -34,6 +28,10 @@ namespace Flatline.Http
             if (httpOnly)
             {
                 cookieBuilder.Append("; HttpOnly");
+            }
+            if (secure)
+            {
+                cookieBuilder.Append("; Secure");
             }
             SetCookieHeaders.Add(cookieBuilder.ToString());
         }
