@@ -507,10 +507,19 @@ function createDropdownFilter(containerId, labelPrefix, pairs) {
 }
 
 function createDropdownFilterWithDefaults(containerId, labelPrefix, pairs, defaultUncheckedValues) {
+    /* If the dropdown is being rebuilt (e.g. populateAssigneeDropdowns runs
+     * again when the bug-detail view loads), keep whatever the user already
+     * had selected instead of resetting to defaults. Values that no longer
+     * exist drop out; new values start unchecked. */
+    let preservedCheckedValues = null;
+    if (DropdownFilters[containerId]) {
+        preservedCheckedValues = readCheckboxGroup(containerId);
+    }
     DropdownFilters[containerId] = {
         labelPrefix: labelPrefix,
         pairs: pairs.slice(),
         defaultUncheckedValues: defaultUncheckedValues.slice(),
+        preservedCheckedValues: preservedCheckedValues,
         isOpen: false
     };
     renderDropdownFilter(containerId);
@@ -559,7 +568,9 @@ function renderDropdownFilter(containerId) {
         optionCheckbox.type = "checkbox";
         optionCheckbox.value = pair.value;
         let startsChecked = true;
-        if (instance.defaultUncheckedValues && instance.defaultUncheckedValues.indexOf(pair.value) !== -1) {
+        if (instance.preservedCheckedValues) {
+            startsChecked = instance.preservedCheckedValues.indexOf(pair.value) !== -1;
+        } else if (instance.defaultUncheckedValues && instance.defaultUncheckedValues.indexOf(pair.value) !== -1) {
             startsChecked = false;
         }
         optionCheckbox.checked = startsChecked;
