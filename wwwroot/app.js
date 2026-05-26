@@ -8,6 +8,7 @@ const State = {
     comments: [],
     relatedBugs: [],
     attachments: [],
+    pendingAttachmentFiles: [],
     relatedSearchTimer: null,
     relatedSearchPendingQuery: "",
     bugDetailReturnTo: "homeView",
@@ -1422,6 +1423,8 @@ async function renderBugDetail() {
 
     renderRelatedBugs();
     renderAttachments();
+    State.pendingAttachmentFiles = [];
+    renderPendingAttachments();
     renderComments();
 }
 
@@ -1821,20 +1824,78 @@ function formatAttachmentSize(bytes) {
     return (bytes / (1024 * 1024)).toFixed(1) + " MB";
 }
 
+function handleAttachmentFileInputChange(changeEvent) {
+    const fileInput = changeEvent.currentTarget;
+    const pickedFiles = [];
+    let inputFileIndex = 0;
+    while (inputFileIndex < fileInput.files.length) {
+        pickedFiles.push(fileInput.files[inputFileIndex]);
+        inputFileIndex++;
+    }
+    State.pendingAttachmentFiles = pickedFiles;
+    /* Clear the input value so re-picking the same file still fires
+     * change. The visible source of truth is our pending table. */
+    fileInput.value = "";
+    document.getElementById("uploadAttachmentError").textContent = "";
+    renderPendingAttachments();
+}
+
+function renderPendingAttachments() {
+    const tableElement = document.getElementById("uploadPendingTable");
+    const tbodyElement = document.getElementById("uploadPendingTbody");
+    const emptyElement = document.getElementById("uploadPendingEmpty");
+    const submitButton = document.getElementById("uploadAttachmentSubmit");
+    tbodyElement.innerHTML = "";
+
+    if (State.pendingAttachmentFiles.length === 0) {
+        tableElement.classList.add("hidden");
+        emptyElement.classList.remove("hidden");
+        submitButton.disabled = true;
+        return;
+    }
+    tableElement.classList.remove("hidden");
+    emptyElement.classList.add("hidden");
+    submitButton.disabled = false;
+
+    let pendingIndex = 0;
+    while (pendingIndex < State.pendingAttachmentFiles.length) {
+        const pendingFile = State.pendingAttachmentFiles[pendingIndex];
+        const row = document.createElement("tr");
+        row.innerHTML =
+            "<td class=\"upload-pending-name\">" + escapeHtml(pendingFile.name) + "</td>" +
+            "<td class=\"upload-pending-size\">" + escapeHtml(formatAttachmentSize(pendingFile.size)) + "</td>" +
+            "<td class=\"upload-pending-actions\"><button type=\"button\" class=\"upload-pending-remove edit-button\" data-pending-index=\"" + pendingIndex + "\">Remove</button></td>";
+        tbodyElement.appendChild(row);
+        pendingIndex++;
+    }
+
+    const removeButtons = tbodyElement.querySelectorAll(".upload-pending-remove");
+    const removeButtonCount = removeButtons.length;
+    for (let removeButtonIndex = 0; removeButtonIndex < removeButtonCount; removeButtonIndex++) {
+        removeButtons[removeButtonIndex].addEventListener("click", handlePendingAttachmentRemoveClick);
+    }
+}
+
+function handlePendingAttachmentRemoveClick(clickEvent) {
+    const button = clickEvent.currentTarget;
+    const removeIndex = Number(button.dataset.pendingIndex);
+    State.pendingAttachmentFiles.splice(removeIndex, 1);
+    renderPendingAttachments();
+}
+
 async function handleUploadAttachmentSubmit(submitEvent) {
     submitEvent.preventDefault();
-    const fileInput = document.getElementById("attachmentFileInput");
     const errorElement = document.getElementById("uploadAttachmentError");
     errorElement.textContent = "";
-    if (fileInput.files.length === 0) {
+    if (State.pendingAttachmentFiles.length === 0) {
         errorElement.textContent = "Choose a file first.";
         return;
     }
     const formData = new FormData();
-    let fileIndex = 0;
-    while (fileIndex < fileInput.files.length) {
-        formData.append("file", fileInput.files[fileIndex]);
-        fileIndex++;
+    let pendingIndex = 0;
+    while (pendingIndex < State.pendingAttachmentFiles.length) {
+        formData.append("file", State.pendingAttachmentFiles[pendingIndex]);
+        pendingIndex++;
     }
     try {
         const response = await fetch("/api/bugs/" + State.activeBug.Id + "/attachments", {
@@ -1856,7 +1917,8 @@ async function handleUploadAttachmentSubmit(submitEvent) {
             errorElement.textContent = message;
             return;
         }
-        fileInput.value = "";
+        State.pendingAttachmentFiles = [];
+        renderPendingAttachments();
         State.attachments = await apiRequest("GET", "/api/bugs/" + State.activeBug.Id + "/attachments");
         renderAttachments();
     } catch (uploadError) {
@@ -2812,6 +2874,7 @@ function attachEventHandlers() {
     document.getElementById("bugEditForm").addEventListener("submit", handleBugEditSubmit);
     document.getElementById("newCommentForm").addEventListener("submit", handleNewCommentSubmit);
     document.getElementById("uploadAttachmentForm").addEventListener("submit", handleUploadAttachmentSubmit);
+    document.getElementById("attachmentFileInput").addEventListener("change", handleAttachmentFileInputChange);
     document.getElementById("relatedBugSearchInput").addEventListener("input", handleRelatedSearchInput);
     document.addEventListener("click", handleDocumentClickForRelatedSearch);
 

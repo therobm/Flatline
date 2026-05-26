@@ -334,10 +334,25 @@
                     <h3>Attachments</h3>
                     <div id="attachmentsList"></div>
                     <div id="attachmentsEmpty" class="empty-message hidden">No attachments.</div>
-                    <form id="uploadAttachmentForm">
-                        <input type="file" id="attachmentFileInput" multiple>
-                        <button type="submit">Upload</button>
-                        <div id="uploadAttachmentError" class="error-message"></div>
+                    <form id="uploadAttachmentForm" class="upload-form">
+                        <div class="upload-picker-row">
+                            <input type="file" id="attachmentFileInput" multiple>
+                        </div>
+                        <table class="upload-pending-table" id="uploadPendingTable">
+                            <thead>
+                                <tr>
+                                    <th>Pending file</th>
+                                    <th>Size</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody id="uploadPendingTbody"></tbody>
+                        </table>
+                        <div id="uploadPendingEmpty" class="upload-pending-empty">No files selected yet.</div>
+                        <div class="upload-footer">
+                            <button type="submit" id="uploadAttachmentSubmit" disabled>Upload</button>
+                            <div id="uploadAttachmentError" class="error-message"></div>
+                        </div>
                     </form>
                 </div>
                 <div id="commentsSection">
