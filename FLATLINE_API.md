@@ -83,13 +83,15 @@ does not accept a status field.
 
 `Status` (returned in responses, not accepted on create):
 
-| Value        | Meaning                                |
-|--------------|----------------------------------------|
-| `Open`       | Not yet started.                       |
-| `InProgress` | Someone is working on it.              |
-| `Resolved`   | Believed fixed, awaiting verification. |
-| `Closed`     | Verified fixed / closed out.           |
-| `WontFix`    | Closed without a fix; out of scope.    |
+| Value         | Meaning                                                                                  |
+|---------------|------------------------------------------------------------------------------------------|
+| `Open`        | Not yet started.                                                                         |
+| `InProgress`  | Someone is working on it.                                                                |
+| `NeedsReview` | Active triage state — unverified issue that needs investigation before it moves on.      |
+| `Resolved`    | Believed fixed, awaiting verification.                                                   |
+| `Closed`      | Verified fixed / closed out.                                                             |
+| `WontFix`     | Closed without a fix; out of scope.                                                      |
+| `AsDesigned`  | Terminal — reported behavior is actually intentional and was a misunderstanding.         |
 
 ### Success response
 
