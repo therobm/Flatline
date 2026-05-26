@@ -11,7 +11,6 @@ namespace Flatline.Logging
 
         private static object s_writeLock = new object();
         private static StreamWriter s_currentLogStream = null;
-		private static string s_currentLogFile = null;
 		private static DateTime s_lastLogFileDate = DateTime.MinValue;
 
 		private static bool s_processExitHandlerInstalled = false;
