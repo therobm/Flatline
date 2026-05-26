@@ -98,7 +98,17 @@ namespace Flatline.Routes
                 HttpResponseWriter.WriteJson(context, 401, new { error = "Not authenticated." });
                 return;
             }
+            AddRelatedForBug(context, bugId, false);
+        }
 
+        /* Shared add path used by both the cookie-auth route and the
+         * external API-key route. treatDuplicateAsSuccess flips the
+         * already-related behaviour: the web UI surfaces it as a 409 so
+         * the user sees the click went nowhere; the external API is
+         * idempotent (re-posting an existing link is a no-op 200 with
+         * the existing relation summary). */
+        public static void AddRelatedForBug(FlatlineHttpContext context, long bugId, bool treatDuplicateAsSuccess)
+        {
             RelatedBugCreateRequest createRequest = HttpRequestReader.ReadBodyAsJson<RelatedBugCreateRequest>(context);
             if (createRequest == null || createRequest.RelatedBugId <= 0)
             {
@@ -137,7 +147,13 @@ namespace Flatline.Routes
                 object duplicateResult = duplicateCommand.ExecuteScalar();
                 if (duplicateResult != null)
                 {
-                    HttpResponseWriter.WriteJson(context, 409, new { error = "Bugs are already related." });
+                    if (!treatDuplicateAsSuccess)
+                    {
+                        HttpResponseWriter.WriteJson(context, 409, new { error = "Bugs are already related." });
+                        return;
+                    }
+                    RelatedBugSummary existingSummary = LoadSummary(connection, createRequest.RelatedBugId);
+                    HttpResponseWriter.WriteJson(context, 200, existingSummary);
                     return;
                 }
 
@@ -172,17 +188,7 @@ namespace Flatline.Routes
                     throw;
                 }
 
-                SqliteCommand summaryCommand = connection.CreateCommand();
-                summaryCommand.CommandText = "SELECT id, title, status, priority FROM bugs WHERE id = $id;";
-                summaryCommand.Parameters.AddWithValue("$id", createRequest.RelatedBugId);
-                SqliteDataReader summaryReader = summaryCommand.ExecuteReader();
-                summaryReader.Read();
-                RelatedBugSummary summary = new RelatedBugSummary();
-                summary.Id = summaryReader.GetInt64(0);
-                summary.Title = summaryReader.GetString(1);
-                summary.Status = (eBugStatus)summaryReader.GetInt32(2);
-                summary.Priority = (eBugPriority)summaryReader.GetInt32(3);
-                summaryReader.Close();
+                RelatedBugSummary summary = LoadSummary(connection, createRequest.RelatedBugId);
                 HttpResponseWriter.WriteJson(context, 200, summary);
             }
             finally
@@ -199,7 +205,11 @@ namespace Flatline.Routes
                 HttpResponseWriter.WriteJson(context, 401, new { error = "Not authenticated." });
                 return;
             }
+            DeleteRelatedForBug(context, bugId, relatedBugId);
+        }
 
+        public static void DeleteRelatedForBug(FlatlineHttpContext context, long bugId, long relatedBugId)
+        {
             SqliteConnection connection = SqliteConnectionFactory.OpenConnection();
             try
             {
@@ -241,6 +251,22 @@ namespace Flatline.Routes
             }
 
             HttpResponseWriter.WriteJson(context, 200, new { ok = true });
+        }
+
+        private static RelatedBugSummary LoadSummary(SqliteConnection connection, long bugId)
+        {
+            SqliteCommand summaryCommand = connection.CreateCommand();
+            summaryCommand.CommandText = "SELECT id, title, status, priority FROM bugs WHERE id = $id;";
+            summaryCommand.Parameters.AddWithValue("$id", bugId);
+            SqliteDataReader summaryReader = summaryCommand.ExecuteReader();
+            summaryReader.Read();
+            RelatedBugSummary summary = new RelatedBugSummary();
+            summary.Id = summaryReader.GetInt64(0);
+            summary.Title = summaryReader.GetString(1);
+            summary.Status = (eBugStatus)summaryReader.GetInt32(2);
+            summary.Priority = (eBugPriority)summaryReader.GetInt32(3);
+            summaryReader.Close();
+            return summary;
         }
     }
 }

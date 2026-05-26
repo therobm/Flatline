@@ -102,6 +102,32 @@ namespace Flatline.Routes
             HttpResponseWriter.WriteJson(context, 200, relatedList);
         }
 
+        public static void HandleAddExternalBugRelated(FlatlineHttpContext context, long bugId)
+        {
+            User keyOwner = ApiKeyRoutes.GetUserFromApiKey(context);
+            if (keyOwner == null)
+            {
+                HttpResponseWriter.WriteJson(context, 401, new { error = "Invalid or missing API key." });
+                return;
+            }
+            /* External API treats a re-post of an existing relation as a
+             * 200 no-op (return the existing summary) rather than the 409
+             * the web UI raises. Idempotency matches how external clients
+             * tend to re-run scripts. */
+            RelatedBugRoutes.AddRelatedForBug(context, bugId, true);
+        }
+
+        public static void HandleDeleteExternalBugRelated(FlatlineHttpContext context, long bugId, long relatedBugId)
+        {
+            User keyOwner = ApiKeyRoutes.GetUserFromApiKey(context);
+            if (keyOwner == null)
+            {
+                HttpResponseWriter.WriteJson(context, 401, new { error = "Invalid or missing API key." });
+                return;
+            }
+            RelatedBugRoutes.DeleteRelatedForBug(context, bugId, relatedBugId);
+        }
+
         public static void HandleListExternalBugAttachments(FlatlineHttpContext context, long bugId)
         {
             User keyOwner = ApiKeyRoutes.GetUserFromApiKey(context);

@@ -67,6 +67,17 @@ namespace Flatline.Http
                 ExternalBugRoutes.HandleListExternalBugRelated(context, externalBugId);
                 return;
             }
+            if (method == "POST" && TryMatchExternalBugRelatedPath(path, out externalBugId))
+            {
+                ExternalBugRoutes.HandleAddExternalBugRelated(context, externalBugId);
+                return;
+            }
+            long externalRelatedBugId = 0;
+            if (method == "DELETE" && TryMatchExternalBugRelatedDeletePath(path, out externalBugId, out externalRelatedBugId))
+            {
+                ExternalBugRoutes.HandleDeleteExternalBugRelated(context, externalBugId, externalRelatedBugId);
+                return;
+            }
             if (method == "GET" && TryMatchExternalBugAttachmentsPath(path, out externalBugId))
             {
                 ExternalBugRoutes.HandleListExternalBugAttachments(context, externalBugId);
@@ -357,6 +368,36 @@ namespace Flatline.Http
                 return false;
             }
             return long.TryParse(idPart, out bugId);
+        }
+
+        /* Matches /api/external/bugs/{bugId}/related/{relatedBugId} for the
+         * DELETE form, where both ids appear in the path. */
+        private static bool TryMatchExternalBugRelatedDeletePath(string path, out long bugId, out long relatedBugId)
+        {
+            bugId = 0;
+            relatedBugId = 0;
+            const string prefix = "/api/external/bugs/";
+            const string mid = "/related/";
+            if (!path.StartsWith(prefix))
+            {
+                return false;
+            }
+            int midIndex = path.IndexOf(mid, prefix.Length);
+            if (midIndex < 0)
+            {
+                return false;
+            }
+            string bugIdPart = path.Substring(prefix.Length, midIndex - prefix.Length);
+            string relatedPart = path.Substring(midIndex + mid.Length);
+            if (bugIdPart.Contains('/') || relatedPart.Contains('/'))
+            {
+                return false;
+            }
+            if (!long.TryParse(bugIdPart, out bugId))
+            {
+                return false;
+            }
+            return long.TryParse(relatedPart, out relatedBugId);
         }
 
         private static bool TryMatchExternalBugAttachmentsPath(string path, out long bugId)

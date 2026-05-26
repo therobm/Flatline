@@ -44,6 +44,8 @@ require a logged-in user.
 | POST   | `/api/external/bugs/{id}/comments`  | Post a comment on a bug.             |
 | GET    | `/api/external/bugs/{id}/comments`  | List comments on a bug.              |
 | GET    | `/api/external/bugs/{id}/related`   | List bugs related to a bug.          |
+| POST   | `/api/external/bugs/{id}/related`   | Create a relation between two bugs.  |
+| DELETE | `/api/external/bugs/{id}/related/{relatedId}` | Remove a relation.         |
 | GET    | `/api/external/bugs/{id}/attachments` | List attachments on a bug.         |
 | POST   | `/api/external/bugs/{id}/attachments` | Upload one or more attachments.    |
 | GET    | `/api/external/attachments/{id}`    | Download an attachment's bytes.      |
@@ -389,6 +391,78 @@ API. An unknown bug id returns an empty array rather than a 404.
 
 ```bash
 curl -k "https://<your-flatline-host>:5443/api/external/bugs/42/related" \
+  -H "X-API-Key: flk_REPLACE_ME"
+```
+
+## Create a relation between two bugs
+
+```
+POST /api/external/bugs/{id}/related
+X-API-Key: flk_<rest-of-key>
+Content-Type: application/json
+```
+
+Creates a symmetric link between `{id}` and the bug named in the body. Both directions are stored in a single transaction, so listing related bugs from either side surfaces the link.
+
+### Request body
+
+```json
+{ "RelatedBugId": 17 }
+```
+
+### Response
+
+`200 OK` with the relation summary, e.g.
+
+```json
+{
+  "Id": 17,
+  "Title": "Album cover art doesn't refresh after rescan",
+  "Status": "Open",
+  "Priority": "Normal"
+}
+```
+
+Idempotent: re-posting an existing link is a `200 OK` returning the same summary, **not** an error.
+
+### Errors
+
+| Status | Body                                              | Cause                                       |
+|--------|---------------------------------------------------|---------------------------------------------|
+| 400    | `{"error":"RelatedBugId is required."}`           | Missing or non-positive `RelatedBugId`.     |
+| 400    | `{"error":"A bug cannot be related to itself."}`  | `RelatedBugId` equals `{id}`.               |
+| 401    | `{"error":"Invalid or missing API key."}`         | `X-API-Key` header missing or unknown.      |
+| 404    | `{"error":"One or both bugs not found."}`         | Either bug id doesn't exist.                |
+
+### Example
+
+```bash
+curl -k -X POST "https://<your-flatline-host>:5443/api/external/bugs/42/related" \
+  -H "X-API-Key: flk_REPLACE_ME" \
+  -H "Content-Type: application/json" \
+  -d '{"RelatedBugId": 17}'
+```
+
+## Remove a relation between two bugs
+
+```
+DELETE /api/external/bugs/{id}/related/{relatedId}
+X-API-Key: flk_<rest-of-key>
+```
+
+Removes both directions of the symmetric link in a single transaction. Returns `200 OK` with `{"ok": true}` on success, `404` if no such relation exists.
+
+### Errors
+
+| Status | Body                                          | Cause                                  |
+|--------|-----------------------------------------------|----------------------------------------|
+| 401    | `{"error":"Invalid or missing API key."}`     | `X-API-Key` header missing or unknown. |
+| 404    | `{"error":"Relation not found."}`             | No relation between those two bug ids. |
+
+### Example
+
+```bash
+curl -k -X DELETE "https://<your-flatline-host>:5443/api/external/bugs/42/related/17" \
   -H "X-API-Key: flk_REPLACE_ME"
 ```
 
