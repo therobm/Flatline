@@ -38,6 +38,7 @@ Types and Declarations
 
 Naming
 - Member fields use m_ prefix. No _ prefix, no bare names for instance fields.
+- Static fields use s_ prefix, camelCase tail (e.g. s_writeLock, s_currentLogStream). Never PascalCase a static field.
 - Verbose, descriptive naming. No abbreviations. No acronyms without context.
 - No single-character variables except i, j, k for loop counters.
 - One class per file. File name matches class name. Exception: small request/response data classes used by a single route file stay in that route file, enums stay in their primary class files, etc..
