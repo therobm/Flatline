@@ -9,25 +9,25 @@ namespace Flatline.Logging
         private const string LogFilePrefix = "flatline-";
         private const string LogFileSuffix = ".log";
 
-        private static object WriteLock = new object();
-        private static StreamWriter CurrentLogWriter = null;
-        private static DateTime CurrentLogDate = DateTime.MinValue;
-        private static TextWriter OriginalConsoleOut = Console.Out;
-        private static bool ProcessExitHandlerInstalled = false;
+        private static object s_writeLock = new object();
+        private static StreamWriter s_currentLogStream = null;
+		private static DateTime s_lastLogFileDate = DateTime.MinValue;
+
+		private static bool s_processExitHandlerInstalled = false;
 
         public static void Info(string message)
         {
-            WriteEntry(eLogLevel.Info, message);
+            WriteLog(eLogLevel.Info, message);
         }
 
         public static void Warning(string message)
         {
-            WriteEntry(eLogLevel.Warning, message);
+            WriteLog(eLogLevel.Warning, message);
         }
 
         public static void Error(string message)
         {
-            WriteEntry(eLogLevel.Error, message);
+            WriteLog(eLogLevel.Error, message);
         }
 
         public static void Exception(Exception exception)
@@ -37,7 +37,7 @@ namespace Flatline.Logging
             {
                 body = exception.ToString();
             }
-            WriteEntry(eLogLevel.Exception, body);
+            WriteLog(eLogLevel.Exception, body);
         }
 
         public static void Exception(Exception exception, string contextMessage)
@@ -47,21 +47,20 @@ namespace Flatline.Logging
             {
                 body = contextMessage + System.Environment.NewLine + exception.ToString();
             }
-            WriteEntry(eLogLevel.Exception, body);
+            WriteLog(eLogLevel.Exception, body);
         }
 
-        private static void WriteEntry(eLogLevel level, string message)
+        private static void WriteLog(eLogLevel level, string message)
         {
-            DateTime now = DateTime.Now;
-            string timestamp = now.ToString("yyyy-MM-dd HH:mm:ss.fff");
+            string timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff");
             string levelTag = GetLevelTag(level);
             string formatted = timestamp + " " + levelTag + " " + message;
+			Console.WriteLine(formatted);
 
-            lock (WriteLock)
+            lock (s_writeLock)
             {
-                OriginalConsoleOut.WriteLine(formatted);
-                EnsureLogWriterForDate(now);
-                CurrentLogWriter.WriteLine(formatted);
+				ValidateLogFile();
+                s_currentLogStream.WriteLine(formatted);
                 /* Flush only when the line matters enough that losing it on a
                  * crash would be a problem. Per-request Info lines are the hot
                  * path; they stay in StreamWriter's buffer and get flushed
@@ -69,7 +68,7 @@ namespace Flatline.Logging
                  * process exit (see InstallProcessExitHandler). */
                 if (level != eLogLevel.Info)
                 {
-                    CurrentLogWriter.Flush();
+                    s_currentLogStream.Flush();
                 }
             }
         }
@@ -95,21 +94,22 @@ namespace Flatline.Logging
             return "?????";
         }
 
-        private static void EnsureLogWriterForDate(DateTime now)
+		private static void ValidateLogFile()
         {
-            DateTime today = now.Date;
-            if (CurrentLogWriter != null && CurrentLogDate == today)
-            {
-                return;
-            }
+            DateTime today = DateTime.Now;
 
-            if (CurrentLogWriter != null)
+			bool initialized = s_lastLogFileDate == today.Date && s_currentLogStream != null;
+			if (initialized)
+				return;
+
+			s_lastLogFileDate = today.Date;
+            if (s_currentLogStream != null)
             {
                 /* StreamWriter.Dispose flushes its buffer before closing, so
                  * day-rollover does not lose the previous day's buffered Info
                  * lines. */
-                CurrentLogWriter.Dispose();
-                CurrentLogWriter = null;
+                s_currentLogStream.Dispose();
+                s_currentLogStream = null;
             }
 
             if (!Directory.Exists(LogDirectory))
@@ -120,24 +120,23 @@ namespace Flatline.Logging
             string fileName = LogFilePrefix + today.ToString("yyyy-MM-dd") + LogFileSuffix;
             string filePath = Path.Combine(LogDirectory, fileName);
             FileStream fileStream = new FileStream(filePath, FileMode.Append, FileAccess.Write, FileShare.Read);
-            CurrentLogWriter = new StreamWriter(fileStream);
-            CurrentLogDate = today;
-
-            if (!ProcessExitHandlerInstalled)
+            s_currentLogStream = new StreamWriter(fileStream);
+    
+            if (!s_processExitHandlerInstalled)
             {
                 AppDomain.CurrentDomain.ProcessExit += OnProcessExit;
-                ProcessExitHandlerInstalled = true;
+                s_processExitHandlerInstalled = true;
             }
         }
 
         private static void OnProcessExit(object sender, EventArgs eventArgs)
         {
-            lock (WriteLock)
+            lock (s_writeLock)
             {
-                if (CurrentLogWriter != null)
+                if (s_currentLogStream != null)
                 {
-                    CurrentLogWriter.Dispose();
-                    CurrentLogWriter = null;
+                    s_currentLogStream.Dispose();
+                    s_currentLogStream = null;
                 }
             }
         }
