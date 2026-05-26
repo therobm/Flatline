@@ -43,6 +43,8 @@ require a logged-in user.
 | PUT    | `/api/external/bugs/{id}`           | Change a bug's status or assignee.   |
 | POST   | `/api/external/bugs/{id}/comments`  | Post a comment on a bug.             |
 | GET    | `/api/external/bugs/{id}/comments`  | List comments on a bug.              |
+| PUT    | `/api/external/comments/{id}`       | Edit a comment's text.               |
+| DELETE | `/api/external/comments/{id}`       | Delete a comment.                    |
 | GET    | `/api/external/bugs/{id}/related`   | List bugs related to a bug.          |
 | POST   | `/api/external/bugs/{id}/related`   | Create a relation between two bugs.  |
 | DELETE | `/api/external/bugs/{id}/related/{relatedId}` | Remove a relation.         |
@@ -350,6 +352,77 @@ a 404.
 
 ```bash
 curl -k "https://<your-flatline-host>:5443/api/external/bugs/42/comments" \
+  -H "X-API-Key: flk_REPLACE_ME"
+```
+
+## Edit a comment
+
+```
+PUT /api/external/comments/{id}
+Content-Type: application/json
+X-API-Key: flk_<rest-of-key>
+```
+
+Rewrites a comment's `Text`. Edit-only: author, parent bug, and `CreatedAt`
+are not changeable through this endpoint. The API key's owner must be the
+comment's author, or an admin. Editing a comment also bumps the parent
+bug's `UpdatedAt`.
+
+### Request body
+
+| Field  | Type   | Required | Notes                              |
+|--------|--------|----------|------------------------------------|
+| `Text` | string | yes      | Non-empty. May contain newlines.   |
+
+### Response
+
+`200 OK` with the updated comment object, same shape as the create-comment
+response.
+
+### Errors
+
+| Status | Body                                              | Cause                                       |
+|--------|---------------------------------------------------|---------------------------------------------|
+| 400    | `{"error":"Comment text is required."}`           | Body missing or `Text` empty.               |
+| 401    | `{"error":"Invalid or missing API key."}`         | `X-API-Key` header missing or unknown.      |
+| 403    | `{"error":"Not authorized to edit this comment."}`| Key owner is not the author and not admin. |
+| 404    | `{"error":"Comment not found."}`                  | No comment with that id.                    |
+
+### Example
+
+```bash
+curl -k -X PUT "https://<your-flatline-host>:5443/api/external/comments/17" \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: flk_REPLACE_ME" \
+  -d '{"Text":"Updated note."}'
+```
+
+## Delete a comment
+
+```
+DELETE /api/external/comments/{id}
+X-API-Key: flk_<rest-of-key>
+```
+
+Removes a comment. The API key's owner must be the comment's author, or an
+admin. Deleting a comment also bumps the parent bug's `UpdatedAt`.
+
+### Response
+
+`200 OK` with `{"ok": true}` on success.
+
+### Errors
+
+| Status | Body                                                | Cause                                       |
+|--------|-----------------------------------------------------|---------------------------------------------|
+| 401    | `{"error":"Invalid or missing API key."}`           | `X-API-Key` header missing or unknown.      |
+| 403    | `{"error":"Not authorized to delete this comment."}`| Key owner is not the author and not admin. |
+| 404    | `{"error":"Comment not found."}`                    | No comment with that id.                    |
+
+### Example
+
+```bash
+curl -k -X DELETE "https://<your-flatline-host>:5443/api/external/comments/17" \
   -H "X-API-Key: flk_REPLACE_ME"
 ```
 

@@ -95,6 +95,18 @@ namespace Flatline.Http
                 return;
             }
 
+            long externalCommentId = 0;
+            if (method == "PUT" && TryMatchExternalCommentId(path, out externalCommentId))
+            {
+                ExternalBugRoutes.HandleUpdateExternalComment(context, externalCommentId);
+                return;
+            }
+            if (method == "DELETE" && TryMatchExternalCommentId(path, out externalCommentId))
+            {
+                ExternalBugRoutes.HandleDeleteExternalComment(context, externalCommentId);
+                return;
+            }
+
             if (method == "GET" && path == "/api/external/projects")
             {
                 ExternalProjectRoutes.HandleListExternalProjects(context);
@@ -421,6 +433,22 @@ namespace Flatline.Http
                 return false;
             }
             return long.TryParse(idPart, out bugId);
+        }
+
+        private static bool TryMatchExternalCommentId(string path, out long commentId)
+        {
+            commentId = 0;
+            const string prefix = "/api/external/comments/";
+            if (!path.StartsWith(prefix))
+            {
+                return false;
+            }
+            string idPart = path.Substring(prefix.Length);
+            if (idPart.Contains('/'))
+            {
+                return false;
+            }
+            return long.TryParse(idPart, out commentId);
         }
 
         private static bool TryMatchExternalAttachmentId(string path, out long attachmentId)
