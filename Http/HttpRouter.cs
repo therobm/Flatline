@@ -67,6 +67,33 @@ namespace Flatline.Http
                 ExternalBugRoutes.HandleListExternalBugRelated(context, externalBugId);
                 return;
             }
+            if (method == "POST" && TryMatchExternalBugRelatedPath(path, out externalBugId))
+            {
+                ExternalBugRoutes.HandleAddExternalBugRelated(context, externalBugId);
+                return;
+            }
+            long externalRelatedBugId = 0;
+            if (method == "DELETE" && TryMatchExternalBugRelatedDeletePath(path, out externalBugId, out externalRelatedBugId))
+            {
+                ExternalBugRoutes.HandleDeleteExternalBugRelated(context, externalBugId, externalRelatedBugId);
+                return;
+            }
+            if (method == "GET" && TryMatchExternalBugAttachmentsPath(path, out externalBugId))
+            {
+                ExternalBugRoutes.HandleListExternalBugAttachments(context, externalBugId);
+                return;
+            }
+            if (method == "POST" && TryMatchExternalBugAttachmentsPath(path, out externalBugId))
+            {
+                ExternalBugRoutes.HandleUploadExternalBugAttachment(context, externalBugId);
+                return;
+            }
+            long externalAttachmentId = 0;
+            if (method == "GET" && TryMatchExternalAttachmentId(path, out externalAttachmentId))
+            {
+                ExternalBugRoutes.HandleDownloadExternalAttachment(context, externalAttachmentId);
+                return;
+            }
 
             if (method == "GET" && path == "/api/external/projects")
             {
@@ -158,6 +185,34 @@ namespace Flatline.Http
                         RelatedBugRoutes.HandleDeleteRelated(context, bugId, relatedBugId);
                         return;
                     }
+                }
+                if (bugSubPath == "/attachments")
+                {
+                    if (method == "GET")
+                    {
+                        AttachmentRoutes.HandleListForBug(context, bugId);
+                        return;
+                    }
+                    if (method == "POST")
+                    {
+                        AttachmentRoutes.HandleUpload(context, bugId);
+                        return;
+                    }
+                }
+            }
+
+            long attachmentId = 0;
+            if (TryMatchAttachmentId(path, out attachmentId))
+            {
+                if (method == "GET")
+                {
+                    AttachmentRoutes.HandleDownload(context, attachmentId);
+                    return;
+                }
+                if (method == "DELETE")
+                {
+                    AttachmentRoutes.HandleDelete(context, attachmentId);
+                    return;
                 }
             }
 
@@ -313,6 +368,91 @@ namespace Flatline.Http
                 return false;
             }
             return long.TryParse(idPart, out bugId);
+        }
+
+        /* Matches /api/external/bugs/{bugId}/related/{relatedBugId} for the
+         * DELETE form, where both ids appear in the path. */
+        private static bool TryMatchExternalBugRelatedDeletePath(string path, out long bugId, out long relatedBugId)
+        {
+            bugId = 0;
+            relatedBugId = 0;
+            const string prefix = "/api/external/bugs/";
+            const string mid = "/related/";
+            if (!path.StartsWith(prefix))
+            {
+                return false;
+            }
+            int midIndex = path.IndexOf(mid, prefix.Length);
+            if (midIndex < 0)
+            {
+                return false;
+            }
+            string bugIdPart = path.Substring(prefix.Length, midIndex - prefix.Length);
+            string relatedPart = path.Substring(midIndex + mid.Length);
+            if (bugIdPart.Contains('/') || relatedPart.Contains('/'))
+            {
+                return false;
+            }
+            if (!long.TryParse(bugIdPart, out bugId))
+            {
+                return false;
+            }
+            return long.TryParse(relatedPart, out relatedBugId);
+        }
+
+        private static bool TryMatchExternalBugAttachmentsPath(string path, out long bugId)
+        {
+            bugId = 0;
+            const string prefix = "/api/external/bugs/";
+            const string suffix = "/attachments";
+            if (!path.StartsWith(prefix) || !path.EndsWith(suffix))
+            {
+                return false;
+            }
+            int idStart = prefix.Length;
+            int idEnd = path.Length - suffix.Length;
+            if (idEnd <= idStart)
+            {
+                return false;
+            }
+            string idPart = path.Substring(idStart, idEnd - idStart);
+            if (idPart.Contains('/'))
+            {
+                return false;
+            }
+            return long.TryParse(idPart, out bugId);
+        }
+
+        private static bool TryMatchExternalAttachmentId(string path, out long attachmentId)
+        {
+            attachmentId = 0;
+            const string prefix = "/api/external/attachments/";
+            if (!path.StartsWith(prefix))
+            {
+                return false;
+            }
+            string idPart = path.Substring(prefix.Length);
+            if (idPart.Contains('/'))
+            {
+                return false;
+            }
+            return long.TryParse(idPart, out attachmentId);
+        }
+
+        private static bool TryMatchAttachmentId(string path, out long attachmentId)
+        {
+            attachmentId = 0;
+            const string prefix = "/api/attachments/";
+            if (!path.StartsWith(prefix))
+            {
+                return false;
+            }
+            string idPart = path.Substring(prefix.Length);
+            if (idPart.Contains('/'))
+            {
+                return false;
+            }
+            return long.TryParse(idPart, out attachmentId);
         }
 
         private static bool TryMatchRelatedBugId(string subPath, out long relatedBugId)

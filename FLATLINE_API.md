@@ -44,6 +44,11 @@ require a logged-in user.
 | POST   | `/api/external/bugs/{id}/comments`  | Post a comment on a bug.             |
 | GET    | `/api/external/bugs/{id}/comments`  | List comments on a bug.              |
 | GET    | `/api/external/bugs/{id}/related`   | List bugs related to a bug.          |
+| POST   | `/api/external/bugs/{id}/related`   | Create a relation between two bugs.  |
+| DELETE | `/api/external/bugs/{id}/related/{relatedId}` | Remove a relation.         |
+| GET    | `/api/external/bugs/{id}/attachments` | List attachments on a bug.         |
+| POST   | `/api/external/bugs/{id}/attachments` | Upload one or more attachments.    |
+| GET    | `/api/external/attachments/{id}`    | Download an attachment's bytes.      |
 
 ## Create a bug
 
@@ -387,6 +392,178 @@ API. An unknown bug id returns an empty array rather than a 404.
 ```bash
 curl -k "https://<your-flatline-host>:5443/api/external/bugs/42/related" \
   -H "X-API-Key: flk_REPLACE_ME"
+```
+
+## Create a relation between two bugs
+
+```
+POST /api/external/bugs/{id}/related
+X-API-Key: flk_<rest-of-key>
+Content-Type: application/json
+```
+
+Creates a symmetric link between `{id}` and the bug named in the body. Both directions are stored in a single transaction, so listing related bugs from either side surfaces the link.
+
+### Request body
+
+```json
+{ "RelatedBugId": 17 }
+```
+
+### Response
+
+`200 OK` with the relation summary, e.g.
+
+```json
+{
+  "Id": 17,
+  "Title": "Album cover art doesn't refresh after rescan",
+  "Status": "Open",
+  "Priority": "Normal"
+}
+```
+
+Idempotent: re-posting an existing link is a `200 OK` returning the same summary, **not** an error.
+
+### Errors
+
+| Status | Body                                              | Cause                                       |
+|--------|---------------------------------------------------|---------------------------------------------|
+| 400    | `{"error":"RelatedBugId is required."}`           | Missing or non-positive `RelatedBugId`.     |
+| 400    | `{"error":"A bug cannot be related to itself."}`  | `RelatedBugId` equals `{id}`.               |
+| 401    | `{"error":"Invalid or missing API key."}`         | `X-API-Key` header missing or unknown.      |
+| 404    | `{"error":"One or both bugs not found."}`         | Either bug id doesn't exist.                |
+
+### Example
+
+```bash
+curl -k -X POST "https://<your-flatline-host>:5443/api/external/bugs/42/related" \
+  -H "X-API-Key: flk_REPLACE_ME" \
+  -H "Content-Type: application/json" \
+  -d '{"RelatedBugId": 17}'
+```
+
+## Remove a relation between two bugs
+
+```
+DELETE /api/external/bugs/{id}/related/{relatedId}
+X-API-Key: flk_<rest-of-key>
+```
+
+Removes both directions of the symmetric link in a single transaction. Returns `200 OK` with `{"ok": true}` on success, `404` if no such relation exists.
+
+### Errors
+
+| Status | Body                                          | Cause                                  |
+|--------|-----------------------------------------------|----------------------------------------|
+| 401    | `{"error":"Invalid or missing API key."}`     | `X-API-Key` header missing or unknown. |
+| 404    | `{"error":"Relation not found."}`             | No relation between those two bug ids. |
+
+### Example
+
+```bash
+curl -k -X DELETE "https://<your-flatline-host>:5443/api/external/bugs/42/related/17" \
+  -H "X-API-Key: flk_REPLACE_ME"
+```
+
+## List attachments on a bug
+
+```
+GET /api/external/bugs/{id}/attachments
+X-API-Key: flk_<rest-of-key>
+```
+
+Returns metadata for every file attached to the bug, ordered oldest-first by upload time. Bytes aren't included — fetch them via the download endpoint below.
+
+### Response
+
+```json
+[
+  {
+    "Id": 17,
+    "BugId": 42,
+    "Filename": "screenshot.png",
+    "ContentType": "image/png",
+    "SizeBytes": 184321,
+    "UploadedBy": 2,
+    "UploadedByUsername": "Vibratron",
+    "UploadedByDisplayName": "Vibratron",
+    "UploadedAt": "2026-05-26T13:25:32.5867123Z"
+  }
+]
+```
+
+### Errors
+
+| Status | Body                                          | Cause                                  |
+|--------|-----------------------------------------------|----------------------------------------|
+| 401    | `{"error":"Invalid or missing API key."}`     | `X-API-Key` header missing or unknown. |
+
+### Example
+
+```bash
+curl -k "https://<your-flatline-host>:5443/api/external/bugs/42/attachments" \
+  -H "X-API-Key: flk_REPLACE_ME"
+```
+
+## Upload attachments
+
+```
+POST /api/external/bugs/{id}/attachments
+X-API-Key: flk_<rest-of-key>
+Content-Type: multipart/form-data; boundary=...
+```
+
+Standard `multipart/form-data` upload. One or more file parts named `file` per request; non-file parts are ignored. The original filename, the part's `Content-Type`, and the byte size are stored against the attachment row. Server-side body cap is 16 MB per request.
+
+`UploadedBy` is set to the user who owns the API key used.
+
+### Response
+
+`200 OK` with a JSON array of the newly-created attachments (same shape as the list endpoint).
+
+### Errors
+
+| Status | Body                                                                   | Cause                                                  |
+|--------|------------------------------------------------------------------------|--------------------------------------------------------|
+| 400    | `{"error":"Request body must be multipart/form-data with a boundary."}` | Missing or non-multipart `Content-Type`.              |
+| 400    | `{"error":"No file part found in upload."}`                            | Body parsed but contained no file part.                |
+| 401    | `{"error":"Invalid or missing API key."}`                              | `X-API-Key` header missing or unknown.                 |
+| 404    | `{"error":"Bug not found."}`                                           | No bug with that id.                                   |
+
+### Example
+
+```bash
+curl -k -X POST "https://<your-flatline-host>:5443/api/external/bugs/42/attachments" \
+  -H "X-API-Key: flk_REPLACE_ME" \
+  -F "file=@./screenshot.png"
+```
+
+## Download an attachment
+
+```
+GET /api/external/attachments/{id}
+X-API-Key: flk_<rest-of-key>
+```
+
+Returns the raw bytes with the original `Content-Type` and `Content-Disposition: inline; filename="..."` so images can be referenced from `<img src>` directly and other types still get a sensible Save As hint.
+
+### Errors
+
+| Status | Body                                          | Cause                                  |
+|--------|-----------------------------------------------|----------------------------------------|
+| 401    | `{"error":"Invalid or missing API key."}`     | `X-API-Key` header missing or unknown. |
+| 404    | `{"error":"Attachment not found."}`           | No attachment with that id.            |
+| 404    | `{"error":"Attachment file missing on disk."}`| Metadata row exists but file is gone (manual filesystem edit, etc.). |
+
+Note: the external API does not expose attachment deletion. Delete via the web UI.
+
+### Example
+
+```bash
+curl -k "https://<your-flatline-host>:5443/api/external/attachments/17" \
+  -H "X-API-Key: flk_REPLACE_ME" \
+  -o screenshot.png
 ```
 
 ## List projects
