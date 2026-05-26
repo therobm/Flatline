@@ -135,12 +135,14 @@ function renderMarkdownSafe(rawText) {
 
 function renderInlineMarkdown(escapedText) {
     /* Inline code first so its contents don't get re-processed for
-     * bold/italic/link tokens. The placeholder is opaque to the next
-     * passes (it contains only a digit and a sentinel) and gets
-     * restored at the end. */
+     * bold/italic/link tokens. The placeholder must contain no
+     * markdown-active characters — earlier "@@FLATLINE_CODE_n@@"
+     * leaked because the italic pass below treats _ as an italic
+     * marker, so _CODE_ got eaten before the restore pass ran. The
+     * @ sentinel plus digits is opaque to every later regex. */
     const codeSpans = [];
     let processed = escapedText.replace(/`([^`]+)`/g, function onCode(matchText, codeBody) {
-        const placeholder = "@@FLATLINE_CODE_" + codeSpans.length + "@@";
+        const placeholder = "@@FLATLINECODE" + codeSpans.length + "@@";
         codeSpans.push("<code>" + codeBody + "</code>");
         return placeholder;
     });
@@ -162,7 +164,7 @@ function renderInlineMarkdown(escapedText) {
     /* Restore code placeholders. */
     const codeSpanCount = codeSpans.length;
     for (let codeSpanIndex = 0; codeSpanIndex < codeSpanCount; codeSpanIndex++) {
-        processed = processed.replace("@@FLATLINE_CODE_" + codeSpanIndex + "@@", codeSpans[codeSpanIndex]);
+        processed = processed.replace("@@FLATLINECODE" + codeSpanIndex + "@@", codeSpans[codeSpanIndex]);
     }
     return processed;
 }
