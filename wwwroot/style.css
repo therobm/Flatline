@@ -224,6 +224,28 @@ code {
     font-weight: var(--font-weight-bold);
 }
 
+.view-refresh-button {
+    background-color: var(--color-chrome);
+    color: var(--color-text);
+    border-style: outset;
+    border-width: var(--border-width-bevel);
+    border-color: var(--color-chrome);
+    padding: var(--space-1) var(--space-3);
+    font-family: var(--font-sans);
+    font-size: var(--font-size-base);
+    cursor: pointer;
+    border-radius: var(--radius);
+}
+
+.view-refresh-button:active {
+    border-style: inset;
+}
+
+.view-refresh-button:focus {
+    outline: 1px dotted var(--color-text);
+    outline-offset: -4px;
+}
+
 /* ------- Window/panel headers (title-bar style) ------- */
 
 .bug-section,
