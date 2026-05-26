@@ -43,6 +43,7 @@ require a logged-in user.
 | PUT    | `/api/external/bugs/{id}`           | Change a bug's status or assignee.   |
 | POST   | `/api/external/bugs/{id}/comments`  | Post a comment on a bug.             |
 | GET    | `/api/external/bugs/{id}/comments`  | List comments on a bug.              |
+| GET    | `/api/external/bugs/{id}/related`   | List bugs related to a bug.          |
 
 ## Create a bug
 
@@ -344,6 +345,47 @@ a 404.
 
 ```bash
 curl -k "https://<your-flatline-host>:5443/api/external/bugs/42/comments" \
+  -H "X-API-Key: flk_REPLACE_ME"
+```
+
+## List related bugs
+
+```
+GET /api/external/bugs/{id}/related
+X-API-Key: flk_<rest-of-key>
+```
+
+Returns a JSON array of every bug related to `{id}` (the relation is
+symmetric — both directions are stored), ordered by id ascending. Each
+entry is a compact summary, not the full bug body. Useful for "before I
+work on this bug, what else has been linked to it" lookups.
+
+### Response
+
+```json
+[
+  {
+    "Id": 17,
+    "Title": "Album cover art doesn't refresh after rescan",
+    "Status": "Open",
+    "Priority": "Normal"
+  }
+]
+```
+
+`Status` and `Priority` are the same enum strings as elsewhere in the
+API. An unknown bug id returns an empty array rather than a 404.
+
+### Errors
+
+| Status | Body                                          | Cause                                  |
+|--------|-----------------------------------------------|----------------------------------------|
+| 401    | `{"error":"Invalid or missing API key."}`     | `X-API-Key` header missing or unknown. |
+
+### Example
+
+```bash
+curl -k "https://<your-flatline-host>:5443/api/external/bugs/42/related" \
   -H "X-API-Key: flk_REPLACE_ME"
 ```
 

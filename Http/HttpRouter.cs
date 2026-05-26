@@ -62,6 +62,11 @@ namespace Flatline.Http
                 ExternalBugRoutes.HandleListExternalBugComments(context, externalBugId);
                 return;
             }
+            if (method == "GET" && TryMatchExternalBugRelatedPath(path, out externalBugId))
+            {
+                ExternalBugRoutes.HandleListExternalBugRelated(context, externalBugId);
+                return;
+            }
 
             if (method == "GET" && path == "/api/external/projects")
             {
@@ -269,6 +274,29 @@ namespace Flatline.Http
             bugId = 0;
             const string prefix = "/api/external/bugs/";
             const string suffix = "/comments";
+            if (!path.StartsWith(prefix) || !path.EndsWith(suffix))
+            {
+                return false;
+            }
+            int idStart = prefix.Length;
+            int idEnd = path.Length - suffix.Length;
+            if (idEnd <= idStart)
+            {
+                return false;
+            }
+            string idPart = path.Substring(idStart, idEnd - idStart);
+            if (idPart.Contains('/'))
+            {
+                return false;
+            }
+            return long.TryParse(idPart, out bugId);
+        }
+
+        private static bool TryMatchExternalBugRelatedPath(string path, out long bugId)
+        {
+            bugId = 0;
+            const string prefix = "/api/external/bugs/";
+            const string suffix = "/related";
             if (!path.StartsWith(prefix) || !path.EndsWith(suffix))
             {
                 return false;
