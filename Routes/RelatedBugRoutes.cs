@@ -31,7 +31,6 @@ namespace Flatline.Routes
                 return;
             }
 
-            List<RelatedBugSummary> relatedList = new List<RelatedBugSummary>();
             SqliteConnection connection = SqliteConnectionFactory.OpenConnection();
             try
             {
@@ -44,7 +43,22 @@ namespace Flatline.Routes
                     HttpResponseWriter.WriteJson(context, 404, new { error = "Bug not found." });
                     return;
                 }
+            }
+            finally
+            {
+                connection.Close();
+            }
 
+            List<RelatedBugSummary> relatedList = LoadRelatedForBug(bugId);
+            HttpResponseWriter.WriteJson(context, 200, relatedList);
+        }
+
+        public static List<RelatedBugSummary> LoadRelatedForBug(long bugId)
+        {
+            List<RelatedBugSummary> relatedList = new List<RelatedBugSummary>();
+            SqliteConnection connection = SqliteConnectionFactory.OpenConnection();
+            try
+            {
                 SqliteCommand selectCommand = connection.CreateCommand();
                 selectCommand.CommandText = "SELECT b.id, b.title, b.status, b.priority "
                     + "FROM related_bugs r "
@@ -73,8 +87,7 @@ namespace Flatline.Routes
             {
                 connection.Close();
             }
-
-            HttpResponseWriter.WriteJson(context, 200, relatedList);
+            return relatedList;
         }
 
         public static void HandleAddRelated(FlatlineHttpContext context, long bugId)

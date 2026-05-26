@@ -90,6 +90,18 @@ namespace Flatline.Routes
             HttpResponseWriter.WriteJson(context, 200, commentList);
         }
 
+        public static void HandleListExternalBugRelated(FlatlineHttpContext context, long bugId)
+        {
+            User keyOwner = ApiKeyRoutes.GetUserFromApiKey(context);
+            if (keyOwner == null)
+            {
+                HttpResponseWriter.WriteJson(context, 401, new { error = "Invalid or missing API key." });
+                return;
+            }
+            List<RelatedBugSummary> relatedList = RelatedBugRoutes.LoadRelatedForBug(bugId);
+            HttpResponseWriter.WriteJson(context, 200, relatedList);
+        }
+
         public static void HandleUpdateExternalBug(FlatlineHttpContext context, long id)
         {
             User keyOwner = ApiKeyRoutes.GetUserFromApiKey(context);
