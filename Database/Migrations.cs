@@ -194,7 +194,7 @@ namespace Flatline.Database
             MigrationStep version2 = new MigrationStep();
             version2.Version = 2;
             version2.Sql = @"
-                CREATE TABLE attachments (
+                CREATE TABLE IF NOT EXISTS attachments (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     bug_id INTEGER NOT NULL,
                     filename TEXT NOT NULL,
@@ -207,9 +207,34 @@ namespace Flatline.Database
                     FOREIGN KEY (uploaded_by) REFERENCES users(id)
                 );
 
-                CREATE INDEX idx_attachments_bug_id ON attachments(bug_id);
+                CREATE INDEX IF NOT EXISTS idx_attachments_bug_id ON attachments(bug_id);
             ";
             migrationList.Add(version2);
+
+            // v3: heal databases where v2's schema_versions row was recorded
+            // but the actual CREATE TABLE never landed (seen in the wild on
+            // one deploy of v2 — root cause unclear, but this guarantees the
+            // table exists regardless of what happened during v2). No-op on
+            // any DB that already has the attachments table.
+            MigrationStep version3 = new MigrationStep();
+            version3.Version = 3;
+            version3.Sql = @"
+                CREATE TABLE IF NOT EXISTS attachments (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    bug_id INTEGER NOT NULL,
+                    filename TEXT NOT NULL,
+                    content_type TEXT NOT NULL,
+                    size_bytes INTEGER NOT NULL,
+                    stored_name TEXT NOT NULL UNIQUE,
+                    uploaded_by INTEGER NOT NULL,
+                    uploaded_at TEXT NOT NULL,
+                    FOREIGN KEY (bug_id) REFERENCES bugs(id) ON DELETE CASCADE,
+                    FOREIGN KEY (uploaded_by) REFERENCES users(id)
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_attachments_bug_id ON attachments(bug_id);
+            ";
+            migrationList.Add(version3);
 
             return migrationList;
         }
