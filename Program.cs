@@ -23,6 +23,7 @@ namespace Flatline
 
             Migrations.RunMigrations();
             SeedInitialAdminIfNeeded();
+            AttachmentStorage.Initialize(Path.Combine(AppContext.BaseDirectory, "attachments"));
 
             X509Certificate2 serverCertificate = CertificateProvider.EnsureServerCertificate();
 
