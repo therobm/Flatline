@@ -159,6 +159,34 @@ namespace Flatline.Http
                         return;
                     }
                 }
+                if (bugSubPath == "/attachments")
+                {
+                    if (method == "GET")
+                    {
+                        AttachmentRoutes.HandleListForBug(context, bugId);
+                        return;
+                    }
+                    if (method == "POST")
+                    {
+                        AttachmentRoutes.HandleUpload(context, bugId);
+                        return;
+                    }
+                }
+            }
+
+            long attachmentId = 0;
+            if (TryMatchAttachmentId(path, out attachmentId))
+            {
+                if (method == "GET")
+                {
+                    AttachmentRoutes.HandleDownload(context, attachmentId);
+                    return;
+                }
+                if (method == "DELETE")
+                {
+                    AttachmentRoutes.HandleDelete(context, attachmentId);
+                    return;
+                }
             }
 
             if (method == "GET" && path == "/api/projects")
@@ -313,6 +341,22 @@ namespace Flatline.Http
                 return false;
             }
             return long.TryParse(idPart, out bugId);
+        }
+
+        private static bool TryMatchAttachmentId(string path, out long attachmentId)
+        {
+            attachmentId = 0;
+            const string prefix = "/api/attachments/";
+            if (!path.StartsWith(prefix))
+            {
+                return false;
+            }
+            string idPart = path.Substring(prefix.Length);
+            if (idPart.Contains('/'))
+            {
+                return false;
+            }
+            return long.TryParse(idPart, out attachmentId);
         }
 
         private static bool TryMatchRelatedBugId(string subPath, out long relatedBugId)

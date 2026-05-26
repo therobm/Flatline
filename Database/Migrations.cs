@@ -186,6 +186,31 @@ namespace Flatline.Database
             ";
             migrationList.Add(version1);
 
+            // v2: per-bug file attachments. Bytes live on the filesystem under
+            // the configured attachments directory; this table is just the
+            // metadata index. stored_name is a server-generated unique token
+            // used as the on-disk filename so arbitrary user-supplied names
+            // never reach the filesystem.
+            MigrationStep version2 = new MigrationStep();
+            version2.Version = 2;
+            version2.Sql = @"
+                CREATE TABLE attachments (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    bug_id INTEGER NOT NULL,
+                    filename TEXT NOT NULL,
+                    content_type TEXT NOT NULL,
+                    size_bytes INTEGER NOT NULL,
+                    stored_name TEXT NOT NULL UNIQUE,
+                    uploaded_by INTEGER NOT NULL,
+                    uploaded_at TEXT NOT NULL,
+                    FOREIGN KEY (bug_id) REFERENCES bugs(id) ON DELETE CASCADE,
+                    FOREIGN KEY (uploaded_by) REFERENCES users(id)
+                );
+
+                CREATE INDEX idx_attachments_bug_id ON attachments(bug_id);
+            ";
+            migrationList.Add(version2);
+
             return migrationList;
         }
     }

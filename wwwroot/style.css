@@ -887,6 +887,59 @@ table.bug-table td:first-child {
     width: 100%;
 }
 
+#attachmentsSection {
+    margin-bottom: var(--space-4);
+}
+
+.attachment {
+    display: flex;
+    gap: var(--space-3);
+    align-items: flex-start;
+    background-color: var(--color-window-bg);
+    border-style: inset;
+    border-width: var(--border-width);
+    border-color: var(--color-chrome-dark);
+    padding: var(--space-2) var(--space-3);
+    margin-bottom: var(--space-2);
+}
+
+.attachment-preview img {
+    max-width: 120px;
+    max-height: 120px;
+    display: block;
+    border-style: solid;
+    border-width: var(--border-width);
+    border-color: var(--color-chrome-dark);
+}
+
+.attachment-meta {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    flex: 1;
+}
+
+.attachment-name {
+    font-weight: var(--font-weight-bold);
+}
+
+.attachment-info {
+    font-size: var(--font-size-small);
+    color: var(--color-text-muted);
+}
+
+.attachment-delete-button {
+    align-self: flex-start;
+}
+
+#uploadAttachmentForm {
+    margin-top: var(--space-2);
+    display: flex;
+    gap: var(--space-2);
+    align-items: center;
+    flex-wrap: wrap;
+}
+
 /* ------- Settings ------- */
 
 #newUserPanel,

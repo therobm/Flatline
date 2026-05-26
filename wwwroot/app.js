@@ -7,6 +7,7 @@ const State = {
     activeBug: null,
     comments: [],
     relatedBugs: [],
+    attachments: [],
     relatedSearchTimer: null,
     relatedSearchPendingQuery: "",
     bugDetailReturnTo: "homeView",
@@ -1376,6 +1377,7 @@ async function openBugDetail(bugId) {
     State.activeBug = await apiRequest("GET", "/api/bugs/" + bugId);
     State.comments = await apiRequest("GET", "/api/bugs/" + bugId + "/comments");
     State.relatedBugs = await apiRequest("GET", "/api/bugs/" + bugId + "/related");
+    State.attachments = await apiRequest("GET", "/api/bugs/" + bugId + "/attachments");
     await renderBugDetail();
     showView("bugDetailView");
 }
@@ -1419,6 +1421,7 @@ async function renderBugDetail() {
 	showDescriptionPreview();
 
     renderRelatedBugs();
+    renderAttachments();
     renderComments();
 }
 
@@ -1752,6 +1755,125 @@ async function handleNewCommentSubmit(submitEvent) {
         textArea.value = "";
         State.comments = await apiRequest("GET", "/api/bugs/" + State.activeBug.Id + "/comments");
         renderComments();
+    } catch (apiError) {
+        alert(apiError.message);
+    }
+}
+
+function renderAttachments() {
+    const attachmentsList = document.getElementById("attachmentsList");
+    const attachmentsEmpty = document.getElementById("attachmentsEmpty");
+    attachmentsList.innerHTML = "";
+
+    if (!State.attachments || State.attachments.length === 0) {
+        attachmentsEmpty.classList.remove("hidden");
+        return;
+    }
+    attachmentsEmpty.classList.add("hidden");
+
+    let attachmentIndex = 0;
+    while (attachmentIndex < State.attachments.length) {
+        const attachment = State.attachments[attachmentIndex];
+        const attachmentDiv = document.createElement("div");
+        attachmentDiv.className = "attachment";
+
+        const downloadUrl = "/api/attachments/" + attachment.Id;
+        const isImage = attachment.ContentType && attachment.ContentType.indexOf("image/") === 0;
+
+        let previewHtml = "";
+        if (isImage) {
+            previewHtml =
+                "<a href=\"" + downloadUrl + "\" target=\"_blank\" rel=\"noopener\" class=\"attachment-preview\">" +
+                    "<img src=\"" + downloadUrl + "\" alt=\"" + escapeHtml(attachment.Filename) + "\">" +
+                "</a>";
+        }
+
+        attachmentDiv.innerHTML =
+            previewHtml +
+            "<div class=\"attachment-meta\">" +
+                "<a href=\"" + downloadUrl + "\" target=\"_blank\" rel=\"noopener\" class=\"attachment-name\">" + escapeHtml(attachment.Filename) + "</a>" +
+                "<span class=\"attachment-info\">" +
+                    escapeHtml(formatAttachmentSize(attachment.SizeBytes)) + " &middot; " +
+                    "uploaded by " + escapeHtml(attachment.UploadedByDisplayName) + " " +
+                    escapeHtml(formatTimestamp(attachment.UploadedAt)) +
+                "</span>" +
+                "<button type=\"button\" class=\"attachment-delete-button edit-button\" data-attachment-id=\"" + escapeHtml(attachment.Id) + "\">Delete</button>" +
+            "</div>";
+
+        attachmentsList.appendChild(attachmentDiv);
+        attachmentIndex++;
+    }
+
+    const deleteButtons = attachmentsList.querySelectorAll(".attachment-delete-button");
+    const deleteButtonCount = deleteButtons.length;
+    for (let deleteButtonIndex = 0; deleteButtonIndex < deleteButtonCount; deleteButtonIndex++) {
+        deleteButtons[deleteButtonIndex].addEventListener("click", handleDeleteAttachmentClick);
+    }
+}
+
+function formatAttachmentSize(bytes) {
+    if (bytes < 1024) {
+        return bytes + " B";
+    }
+    if (bytes < 1024 * 1024) {
+        return (bytes / 1024).toFixed(1) + " KB";
+    }
+    return (bytes / (1024 * 1024)).toFixed(1) + " MB";
+}
+
+async function handleUploadAttachmentSubmit(submitEvent) {
+    submitEvent.preventDefault();
+    const fileInput = document.getElementById("attachmentFileInput");
+    const errorElement = document.getElementById("uploadAttachmentError");
+    errorElement.textContent = "";
+    if (fileInput.files.length === 0) {
+        errorElement.textContent = "Choose a file first.";
+        return;
+    }
+    const formData = new FormData();
+    let fileIndex = 0;
+    while (fileIndex < fileInput.files.length) {
+        formData.append("file", fileInput.files[fileIndex]);
+        fileIndex++;
+    }
+    try {
+        const response = await fetch("/api/bugs/" + State.activeBug.Id + "/attachments", {
+            method: "POST",
+            body: formData,
+            credentials: "same-origin"
+        });
+        if (!response.ok) {
+            const payloadText = await response.text();
+            let message = "Upload failed.";
+            try {
+                const payload = JSON.parse(payloadText);
+                if (payload && payload.error) {
+                    message = payload.error;
+                }
+            } catch (parseError) {
+                // leave the default
+            }
+            errorElement.textContent = message;
+            return;
+        }
+        fileInput.value = "";
+        State.attachments = await apiRequest("GET", "/api/bugs/" + State.activeBug.Id + "/attachments");
+        renderAttachments();
+    } catch (uploadError) {
+        errorElement.textContent = uploadError.message;
+    }
+}
+
+async function handleDeleteAttachmentClick(clickEvent) {
+    const button = clickEvent.currentTarget;
+    const attachmentId = button.dataset.attachmentId;
+    if (!confirm("Delete this attachment?")) {
+        return;
+    }
+    try {
+        await apiRequest("DELETE", "/api/attachments/" + attachmentId);
+        State.attachments = await apiRequest("GET", "/api/bugs/" + State.activeBug.Id + "/attachments");
+        renderAttachments();
     } catch (apiError) {
         alert(apiError.message);
     }
@@ -2689,6 +2811,7 @@ function attachEventHandlers() {
     document.getElementById("cancelBugEditButton").addEventListener("click", handleCancelBugEditClick);
     document.getElementById("bugEditForm").addEventListener("submit", handleBugEditSubmit);
     document.getElementById("newCommentForm").addEventListener("submit", handleNewCommentSubmit);
+    document.getElementById("uploadAttachmentForm").addEventListener("submit", handleUploadAttachmentSubmit);
     document.getElementById("relatedBugSearchInput").addEventListener("input", handleRelatedSearchInput);
     document.addEventListener("click", handleDocumentClickForRelatedSearch);
 
