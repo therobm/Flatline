@@ -2644,6 +2644,10 @@ function attachEventHandlers() {
     document.getElementById("userAssignedPriorityFilter").addEventListener("change", refreshUserAssignedSection);
     document.getElementById("userAssignedIncludeClosed").addEventListener("change", refreshUserAssignedSection);
 
+    document.getElementById("homeRefreshButton").addEventListener("click", refreshHomeView);
+    document.getElementById("userRefreshButton").addEventListener("click", refreshUserView);
+    document.getElementById("browseRefreshButton").addEventListener("click", loadBrowseSection);
+
     document.getElementById("browseStatusFilter").addEventListener("change", reloadBrowseAfterFilterChange);
     document.getElementById("browsePriorityFilter").addEventListener("change", reloadBrowseAfterFilterChange);
     document.getElementById("browseAssigneeFilter").addEventListener("change", reloadBrowseAfterFilterChange);
