@@ -75,7 +75,11 @@ namespace Flatline.Routes
                 HttpResponseWriter.WriteJson(context, 401, new { error = "Not authenticated." });
                 return;
             }
+            UploadForUser(context, currentUser, bugId);
+        }
 
+        public static void UploadForUser(FlatlineHttpContext context, User currentUser, long bugId)
+        {
             string contentTypeHeader = HttpRequestReader.GetHeaderValue(context, "Content-Type");
             string boundary;
             if (!MultipartParser.TryGetBoundary(contentTypeHeader, out boundary))
@@ -155,7 +159,11 @@ namespace Flatline.Routes
                 HttpResponseWriter.WriteJson(context, 401, new { error = "Not authenticated." });
                 return;
             }
+            ServeAttachment(context, attachmentId);
+        }
 
+        public static void ServeAttachment(FlatlineHttpContext context, long attachmentId)
+        {
             long bugId;
             string filename;
             string contentType;

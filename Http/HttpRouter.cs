@@ -67,6 +67,22 @@ namespace Flatline.Http
                 ExternalBugRoutes.HandleListExternalBugRelated(context, externalBugId);
                 return;
             }
+            if (method == "GET" && TryMatchExternalBugAttachmentsPath(path, out externalBugId))
+            {
+                ExternalBugRoutes.HandleListExternalBugAttachments(context, externalBugId);
+                return;
+            }
+            if (method == "POST" && TryMatchExternalBugAttachmentsPath(path, out externalBugId))
+            {
+                ExternalBugRoutes.HandleUploadExternalBugAttachment(context, externalBugId);
+                return;
+            }
+            long externalAttachmentId = 0;
+            if (method == "GET" && TryMatchExternalAttachmentId(path, out externalAttachmentId))
+            {
+                ExternalBugRoutes.HandleDownloadExternalAttachment(context, externalAttachmentId);
+                return;
+            }
 
             if (method == "GET" && path == "/api/external/projects")
             {
@@ -341,6 +357,45 @@ namespace Flatline.Http
                 return false;
             }
             return long.TryParse(idPart, out bugId);
+        }
+
+        private static bool TryMatchExternalBugAttachmentsPath(string path, out long bugId)
+        {
+            bugId = 0;
+            const string prefix = "/api/external/bugs/";
+            const string suffix = "/attachments";
+            if (!path.StartsWith(prefix) || !path.EndsWith(suffix))
+            {
+                return false;
+            }
+            int idStart = prefix.Length;
+            int idEnd = path.Length - suffix.Length;
+            if (idEnd <= idStart)
+            {
+                return false;
+            }
+            string idPart = path.Substring(idStart, idEnd - idStart);
+            if (idPart.Contains('/'))
+            {
+                return false;
+            }
+            return long.TryParse(idPart, out bugId);
+        }
+
+        private static bool TryMatchExternalAttachmentId(string path, out long attachmentId)
+        {
+            attachmentId = 0;
+            const string prefix = "/api/external/attachments/";
+            if (!path.StartsWith(prefix))
+            {
+                return false;
+            }
+            string idPart = path.Substring(prefix.Length);
+            if (idPart.Contains('/'))
+            {
+                return false;
+            }
+            return long.TryParse(idPart, out attachmentId);
         }
 
         private static bool TryMatchAttachmentId(string path, out long attachmentId)

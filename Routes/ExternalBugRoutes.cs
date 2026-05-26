@@ -102,6 +102,40 @@ namespace Flatline.Routes
             HttpResponseWriter.WriteJson(context, 200, relatedList);
         }
 
+        public static void HandleListExternalBugAttachments(FlatlineHttpContext context, long bugId)
+        {
+            User keyOwner = ApiKeyRoutes.GetUserFromApiKey(context);
+            if (keyOwner == null)
+            {
+                HttpResponseWriter.WriteJson(context, 401, new { error = "Invalid or missing API key." });
+                return;
+            }
+            List<Attachment> attachmentList = AttachmentRoutes.LoadAttachmentsForBug(bugId);
+            HttpResponseWriter.WriteJson(context, 200, attachmentList);
+        }
+
+        public static void HandleUploadExternalBugAttachment(FlatlineHttpContext context, long bugId)
+        {
+            User keyOwner = ApiKeyRoutes.GetUserFromApiKey(context);
+            if (keyOwner == null)
+            {
+                HttpResponseWriter.WriteJson(context, 401, new { error = "Invalid or missing API key." });
+                return;
+            }
+            AttachmentRoutes.UploadForUser(context, keyOwner, bugId);
+        }
+
+        public static void HandleDownloadExternalAttachment(FlatlineHttpContext context, long attachmentId)
+        {
+            User keyOwner = ApiKeyRoutes.GetUserFromApiKey(context);
+            if (keyOwner == null)
+            {
+                HttpResponseWriter.WriteJson(context, 401, new { error = "Invalid or missing API key." });
+                return;
+            }
+            AttachmentRoutes.ServeAttachment(context, attachmentId);
+        }
+
         public static void HandleUpdateExternalBug(FlatlineHttpContext context, long id)
         {
             User keyOwner = ApiKeyRoutes.GetUserFromApiKey(context);
