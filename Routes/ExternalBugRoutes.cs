@@ -8,6 +8,11 @@ using Flatline.Models;
 
 namespace Flatline.Routes
 {
+    public class ExternalCommentUpdateRequest
+    {
+        public string Text = "";
+    }
+
     public class ExternalBugUpdateRequest
     {
         // Sentinel: empty string means "no status change". Any other value
@@ -88,6 +93,134 @@ namespace Flatline.Routes
             }
             List<Comment> commentList = CommentRoutes.LoadCommentsForBug(bugId);
             HttpResponseWriter.WriteJson(context, 200, commentList);
+        }
+
+        public static void HandleUpdateExternalComment(FlatlineHttpContext context, long commentId)
+        {
+            User keyOwner = ApiKeyRoutes.GetUserFromApiKey(context);
+            if (keyOwner == null)
+            {
+                HttpResponseWriter.WriteJson(context, 401, new { error = "Invalid or missing API key." });
+                return;
+            }
+
+            ExternalCommentUpdateRequest updateRequest = HttpRequestReader.ReadBodyAsJson<ExternalCommentUpdateRequest>(context);
+            if (updateRequest == null || string.IsNullOrWhiteSpace(updateRequest.Text))
+            {
+                HttpResponseWriter.WriteJson(context, 400, new { error = "Comment text is required." });
+                return;
+            }
+
+            SqliteConnection connection = SqliteConnectionFactory.OpenConnection();
+            try
+            {
+                SqliteCommand authorLookup = connection.CreateCommand();
+                authorLookup.CommandText = "SELECT user_id, bug_id FROM comments WHERE id = $id;";
+                authorLookup.Parameters.AddWithValue("$id", commentId);
+                SqliteDataReader reader = authorLookup.ExecuteReader();
+                if (!reader.Read())
+                {
+                    reader.Close();
+                    HttpResponseWriter.WriteJson(context, 404, new { error = "Comment not found." });
+                    return;
+                }
+                long authorUserId = reader.GetInt64(0);
+                long bugIdOfComment = reader.GetInt64(1);
+                reader.Close();
+
+                if (authorUserId != keyOwner.Id && !keyOwner.IsAdmin)
+                {
+                    HttpResponseWriter.WriteJson(context, 403, new { error = "Not authorized to edit this comment." });
+                    return;
+                }
+
+                SqliteCommand updateCommand = connection.CreateCommand();
+                updateCommand.CommandText = "UPDATE comments SET text = $text WHERE id = $id;";
+                updateCommand.Parameters.AddWithValue("$text", updateRequest.Text);
+                updateCommand.Parameters.AddWithValue("$id", commentId);
+                updateCommand.ExecuteNonQuery();
+
+                string nowIso = DateTime.UtcNow.ToString("o");
+                SqliteCommand touchBugCommand = connection.CreateCommand();
+                touchBugCommand.CommandText = "UPDATE bugs SET updated_at = $updated_at WHERE id = $id;";
+                touchBugCommand.Parameters.AddWithValue("$updated_at", nowIso);
+                touchBugCommand.Parameters.AddWithValue("$id", bugIdOfComment);
+                touchBugCommand.ExecuteNonQuery();
+
+                SqliteCommand readBack = connection.CreateCommand();
+                readBack.CommandText = "SELECT c.id, c.bug_id, c.user_id, c.text, c.created_at, u.username, u.display_name "
+                    + "FROM comments c "
+                    + "INNER JOIN users u ON u.id = c.user_id "
+                    + "WHERE c.id = $id;";
+                readBack.Parameters.AddWithValue("$id", commentId);
+                SqliteDataReader readBackReader = readBack.ExecuteReader();
+                readBackReader.Read();
+                Comment updatedComment = new Comment();
+                updatedComment.Id = readBackReader.GetInt64(0);
+                updatedComment.BugId = readBackReader.GetInt64(1);
+                updatedComment.UserId = readBackReader.GetInt64(2);
+                updatedComment.Text = readBackReader.GetString(3);
+                updatedComment.CreatedAt = readBackReader.GetString(4);
+                updatedComment.Username = readBackReader.GetString(5);
+                updatedComment.DisplayName = readBackReader.GetString(6);
+                readBackReader.Close();
+                HttpResponseWriter.WriteJson(context, 200, updatedComment);
+            }
+            finally
+            {
+                connection.Close();
+            }
+        }
+
+        public static void HandleDeleteExternalComment(FlatlineHttpContext context, long commentId)
+        {
+            User keyOwner = ApiKeyRoutes.GetUserFromApiKey(context);
+            if (keyOwner == null)
+            {
+                HttpResponseWriter.WriteJson(context, 401, new { error = "Invalid or missing API key." });
+                return;
+            }
+
+            SqliteConnection connection = SqliteConnectionFactory.OpenConnection();
+            try
+            {
+                SqliteCommand authorLookup = connection.CreateCommand();
+                authorLookup.CommandText = "SELECT user_id, bug_id FROM comments WHERE id = $id;";
+                authorLookup.Parameters.AddWithValue("$id", commentId);
+                SqliteDataReader reader = authorLookup.ExecuteReader();
+                if (!reader.Read())
+                {
+                    reader.Close();
+                    HttpResponseWriter.WriteJson(context, 404, new { error = "Comment not found." });
+                    return;
+                }
+                long authorUserId = reader.GetInt64(0);
+                long bugIdOfComment = reader.GetInt64(1);
+                reader.Close();
+
+                if (authorUserId != keyOwner.Id && !keyOwner.IsAdmin)
+                {
+                    HttpResponseWriter.WriteJson(context, 403, new { error = "Not authorized to delete this comment." });
+                    return;
+                }
+
+                SqliteCommand deleteCommand = connection.CreateCommand();
+                deleteCommand.CommandText = "DELETE FROM comments WHERE id = $id;";
+                deleteCommand.Parameters.AddWithValue("$id", commentId);
+                deleteCommand.ExecuteNonQuery();
+
+                string nowIso = DateTime.UtcNow.ToString("o");
+                SqliteCommand touchBugCommand = connection.CreateCommand();
+                touchBugCommand.CommandText = "UPDATE bugs SET updated_at = $updated_at WHERE id = $id;";
+                touchBugCommand.Parameters.AddWithValue("$updated_at", nowIso);
+                touchBugCommand.Parameters.AddWithValue("$id", bugIdOfComment);
+                touchBugCommand.ExecuteNonQuery();
+            }
+            finally
+            {
+                connection.Close();
+            }
+            HttpResponseWriter.WriteJson(context, 200, new { ok = true });
         }
 
         public static void HandleListExternalBugRelated(FlatlineHttpContext context, long bugId)
