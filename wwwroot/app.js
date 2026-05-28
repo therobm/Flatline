@@ -17,6 +17,8 @@ const State = {
     apiKeys: [],
     browseOffset: 0,
     browseSelectedIds: {},
+    browseSearch: "",
+    browseSearchTimer: null,
     metadata: {
         Statuses: {},
         Priorities: {},
@@ -1020,6 +1022,13 @@ async function refreshUserView() {
 const BrowsePageSize = 50;
 
 async function loadBrowseSection() {
+    const extraParams = {
+        limit: String(BrowsePageSize),
+        offset: String(State.browseOffset)
+    };
+    if (State.browseSearch.length > 0) {
+        extraParams.search = State.browseSearch;
+    }
     const returnedCount = await loadBugSection({
         tableBodyId: "browseTbody",
         emptyId: "browseEmpty",
@@ -1027,12 +1036,25 @@ async function loadBrowseSection() {
         priorityContainerId: "browsePriorityFilter",
         assigneeContainerId: "browseAssigneeFilter",
         projectContainerId: "browseProjectFilter",
-        extraParams: {
-            limit: String(BrowsePageSize),
-            offset: String(State.browseOffset)
-        }
+        extraParams: extraParams
     });
     renderBrowsePagination(returnedCount);
+}
+
+const BrowseSearchDebounceMs = 300;
+
+function handleBrowseSearchInput(inputEvent) {
+    State.browseSearch = inputEvent.currentTarget.value.trim();
+    if (State.browseSearchTimer !== null) {
+        clearTimeout(State.browseSearchTimer);
+        State.browseSearchTimer = null;
+    }
+    State.browseSearchTimer = setTimeout(runBrowseSearch, BrowseSearchDebounceMs);
+}
+
+function runBrowseSearch() {
+    State.browseSearchTimer = null;
+    reloadBrowseAfterFilterChange();
 }
 
 /* Reset to page 1 and reload. Used by every Browse filter change so a
@@ -2836,6 +2858,7 @@ function attachEventHandlers() {
     document.getElementById("browsePriorityFilter").addEventListener("change", reloadBrowseAfterFilterChange);
     document.getElementById("browseAssigneeFilter").addEventListener("change", reloadBrowseAfterFilterChange);
     document.getElementById("browseProjectFilter").addEventListener("change", reloadBrowseAfterFilterChange);
+    document.getElementById("browseSearchInput").addEventListener("input", handleBrowseSearchInput);
 
     registerSortableTable("homeNewTbody", refreshHomeNewSection);
     registerSortableTable("homeModifiedTbody", refreshHomeModifiedSection);
