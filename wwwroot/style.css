@@ -483,6 +483,19 @@ form button {
     margin-bottom: var(--space-3);
 }
 
+.browse-search-input {
+    background-color: var(--color-input-bg);
+    color: var(--color-input-text);
+    border-style: inset;
+    border-width: var(--border-width-bevel);
+    border-color: var(--color-chrome);
+    padding: var(--space-1) var(--space-2);
+    font-family: var(--font-sans);
+    font-size: var(--font-size-base);
+    border-radius: var(--radius);
+    min-width: 220px;
+}
+
 .dropdown-filter {
     position: relative;
     display: inline-block;
