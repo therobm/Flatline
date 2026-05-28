@@ -217,6 +217,21 @@ namespace Flatline.Routes
             SqliteConnection connection = SqliteConnectionFactory.OpenConnection();
             try
             {
+                /* Confirm the version exists under this project before the
+                 * reference check. Otherwise a version id that belongs to a
+                 * different project but is referenced by bugs would return
+                 * 409 here instead of the correct 404. */
+                SqliteCommand existsCommand = connection.CreateCommand();
+                existsCommand.CommandText = "SELECT id FROM versions WHERE id = $id AND project_id = $project_id;";
+                existsCommand.Parameters.AddWithValue("$id", versionId);
+                existsCommand.Parameters.AddWithValue("$project_id", projectId);
+                object existsResult = existsCommand.ExecuteScalar();
+                if (existsResult == null)
+                {
+                    HttpResponseWriter.WriteJson(context, 404, new { error = "Version not found." });
+                    return;
+                }
+
                 SqliteCommand bugRefCommand = connection.CreateCommand();
                 bugRefCommand.CommandText = "SELECT COUNT(*) FROM bugs WHERE found_in_version_id = $id OR fixed_in_version_id = $id;";
                 bugRefCommand.Parameters.AddWithValue("$id", versionId);
