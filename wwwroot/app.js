@@ -883,6 +883,13 @@ async function loadBugSection(config) {
     return bugs.length;
 }
 
+/* The human-facing bug reference: the project prefix joined to the
+ * per-project number, e.g. FLT1. The numeric Id is still the internal key
+ * used for routing and API calls; this is only for display. */
+function bugReference(bugLike) {
+    return escapeHtml(bugLike.ProjectPrefix) + escapeHtml(bugLike.ProjectBugNumber);
+}
+
 function renderBugRows(tableBodyId, emptyId, bugs) {
     refreshSortIndicators(tableBodyId);
     const tableBody = document.getElementById(tableBodyId);
@@ -929,7 +936,7 @@ function renderBugRows(tableBodyId, emptyId, bugs) {
 
         row.innerHTML =
             selectionCell +
-            "<td>" + escapeHtml(bug.Id) + "</td>" +
+            "<td>" + bugReference(bug) + "</td>" +
             "<td>" + escapeHtml(projectText) + "</td>" +
             "<td>" + escapeHtml(bug.Title) + "</td>" +
             "<td><span class=\"badge badge-status-" + escapeHtml(bug.Status) + "\">" + escapeHtml(statusLabel(bug.Status)) + "</span></td>" +
@@ -1408,7 +1415,7 @@ async function openBugDetail(bugId) {
 
 async function renderBugDetail() {
     const bug = State.activeBug;
-    document.getElementById("bugDetailIdHeading").textContent = "Bug #" + bug.Id;
+    document.getElementById("bugDetailIdHeading").textContent = "Bug " + bug.ProjectPrefix + bug.ProjectBugNumber;
     document.getElementById("detailBugTitle").value = bug.Title;
     document.getElementById("detailBugDescription").value = bug.Description;
     populateOptionSelect(document.getElementById("detailBugStatus"), State.metadata.Statuses, null, bug.Status);
@@ -1494,7 +1501,7 @@ function renderRelatedBugs() {
         const row = document.createElement("tr");
         row.dataset.bugId = String(related.Id);
         row.innerHTML =
-            "<td>" + escapeHtml(related.Id) + "</td>" +
+            "<td>" + bugReference(related) + "</td>" +
             "<td>" + escapeHtml(related.Title) + "</td>" +
             "<td><span class=\"badge badge-status-" + escapeHtml(related.Status) + "\">" + escapeHtml(statusLabel(related.Status)) + "</span></td>" +
             "<td><span class=\"badge badge-priority-" + escapeHtml(related.Priority) + "\">" + escapeHtml(priorityLabel(related.Priority)) + "</span></td>" +
@@ -1607,7 +1614,7 @@ function renderRelatedSearchResults(results) {
         resultRow.className = "related-search-result";
         resultRow.dataset.bugId = String(candidate.Id);
         resultRow.innerHTML =
-            "<span class=\"related-search-result-id\">#" + escapeHtml(candidate.Id) + "</span>" +
+            "<span class=\"related-search-result-id\">" + bugReference(candidate) + "</span>" +
             "<span class=\"related-search-result-title\">" + escapeHtml(candidate.Title) + "</span>" +
             "<span class=\"related-search-result-status badge-status-" + escapeHtml(candidate.Status) + "\">" + escapeHtml(statusLabel(candidate.Status)) + "</span>";
         resultRow.addEventListener("click", handleRelatedSearchResultClick);
@@ -2514,6 +2521,7 @@ function renderProjectTable() {
         }
         row.innerHTML =
             "<td>" + escapeHtml(project.Name) + "</td>" +
+            "<td>" + escapeHtml(project.Prefix) + "</td>" +
             "<td>" + escapeHtml(project.VersionCount) + "</td>" +
             "<td>" + escapeHtml(formatTimestamp(project.CreatedAt)) + "</td>" +
             "<td>" + actionCell + "</td>";
@@ -2551,6 +2559,7 @@ function handleNewProjectButtonClick() {
     document.getElementById("editProjectPanel").classList.add("hidden");
     document.getElementById("newProjectPanel").classList.remove("hidden");
     document.getElementById("newProjectName").value = "";
+    document.getElementById("newProjectPrefix").value = "";
     document.getElementById("newProjectError").textContent = "";
 }
 
@@ -2563,12 +2572,17 @@ async function handleNewProjectSubmit(submitEvent) {
     const errorElement = document.getElementById("newProjectError");
     errorElement.textContent = "";
     const name = document.getElementById("newProjectName").value.trim();
+    const prefix = document.getElementById("newProjectPrefix").value.trim();
     if (!name) {
         errorElement.textContent = "Name is required.";
         return;
     }
+    if (prefix.length !== 3) {
+        errorElement.textContent = "Prefix must be exactly 3 letters.";
+        return;
+    }
     try {
-        await apiRequest("POST", "/api/projects", { Name: name });
+        await apiRequest("POST", "/api/projects", { Name: name, Prefix: prefix });
         document.getElementById("newProjectPanel").classList.add("hidden");
         await loadProjects();
         renderProjectTable();
@@ -2590,6 +2604,7 @@ function handleEditProjectClick(clickEvent) {
     editPanel.dataset.projectId = String(projectId);
     document.getElementById("editProjectHeading").textContent = "Edit project: " + project.Name;
     document.getElementById("editProjectName").value = project.Name;
+    document.getElementById("editProjectPrefix").value = project.Prefix;
     document.getElementById("editProjectError").textContent = "";
 }
 
@@ -2604,12 +2619,17 @@ async function handleEditProjectSubmit(submitEvent) {
     const editPanel = document.getElementById("editProjectPanel");
     const projectId = Number(editPanel.dataset.projectId);
     const name = document.getElementById("editProjectName").value.trim();
+    const prefix = document.getElementById("editProjectPrefix").value.trim();
     if (!name) {
         errorElement.textContent = "Name is required.";
         return;
     }
+    if (prefix.length !== 3) {
+        errorElement.textContent = "Prefix must be exactly 3 letters.";
+        return;
+    }
     try {
-        await apiRequest("PUT", "/api/projects/" + projectId, { Name: name });
+        await apiRequest("PUT", "/api/projects/" + projectId, { Name: name, Prefix: prefix });
         editPanel.classList.add("hidden");
         await loadProjects();
         renderProjectTable();

@@ -483,6 +483,7 @@
                         <thead>
                             <tr>
                                 <th>Name</th>
+                                <th>Prefix</th>
                                 <th>Versions</th>
                                 <th>Created</th>
                                 <th></th>
@@ -496,6 +497,8 @@
                         <form id="editProjectForm">
                             <label for="editProjectName">Name</label>
                             <input type="text" id="editProjectName" required>
+                            <label for="editProjectPrefix">Prefix (3 letters)</label>
+                            <input type="text" id="editProjectPrefix" maxlength="3" required>
                             <div class="form-buttons">
                                 <button type="submit">Save changes</button>
                                 <button type="button" id="cancelEditProjectButton" class="edit-button">Cancel</button>
@@ -509,6 +512,8 @@
                         <form id="newProjectForm">
                             <label for="newProjectName">Name</label>
                             <input type="text" id="newProjectName" required>
+                            <label for="newProjectPrefix">Prefix (3 letters)</label>
+                            <input type="text" id="newProjectPrefix" maxlength="3" required>
                             <div class="form-buttons">
                                 <button type="submit">Create project</button>
                                 <button type="button" id="cancelNewProjectButton" class="edit-button">Cancel</button>
