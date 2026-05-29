@@ -1,9 +1,9 @@
 name: Dev Build
 
 # Manual, on-demand build of a test exe off any branch. Produces the same
-# self-contained win-x64 single-file exe as the release workflow but uploads
-# it as a build artifact instead of cutting a GitHub Release. The version is
-# the same Major.Minor.Build with a -dev suffix.
+# self-contained win-x64 single-file exe as the release workflow, versioned
+# from the VERSION file with a -dev suffix, and uploaded as a build artifact.
+# It never cuts a release and never bumps the build number.
 
 on:
   workflow_dispatch:
@@ -18,19 +18,17 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - name: Setup .NET 8
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
 
-      - name: Compute version
+      - name: Read version
         id: version
         shell: bash
         run: |
-          version="$(bash .github/version.sh)-dev"
+          version="$(tr -d ' \t\r\n' < VERSION)-dev"
           echo "version=${version}" >> "$GITHUB_OUTPUT"
           echo "Version: ${version}"
 

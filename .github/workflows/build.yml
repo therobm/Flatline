@@ -1,9 +1,12 @@
 name: Build and Release
 
-# Unified build strategy (shared with Pulse): a merge to master builds a
-# self-contained win-x64 single-file exe, versions it Major.Minor.Build, and
-# publishes a GitHub Release. Major.Minor live in the VERSION file (edited by
-# hand); Build is derived from git history by .github/version.sh.
+# Unified build strategy (shared with Pulse). A merge to master publishes a
+# self-contained win-x64 single-file exe versioned straight from the VERSION
+# file (Major.Minor.Build), then increments the build component in VERSION and
+# commits it back so the next release picks up the new number. To bump the
+# major or minor version, edit VERSION by hand and reset the build (e.g.
+# 1.1.7 -> 1.2.0). The build commit is made with the repo token and marked
+# [skip ci], so it does not trigger another run.
 
 on:
   workflow_dispatch:
@@ -26,20 +29,22 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          # Full history so the build number (commits since the VERSION bump)
-          # can be computed.
-          fetch-depth: 0
+          ref: master
 
       - name: Setup .NET 8
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
 
-      - name: Compute version
+      - name: Read version
         id: version
         shell: bash
         run: |
-          version=$(bash .github/version.sh)
+          version=$(tr -d ' \t\r\n' < VERSION)
+          if ! echo "$version" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "VERSION must be MAJOR.MINOR.BUILD; got '$version'" >&2
+            exit 1
+          fi
           echo "version=${version}" >> "$GITHUB_OUTPUT"
           echo "Version: ${version}"
 
@@ -70,3 +75,18 @@ jobs:
           generate_release_notes: true
           draft: false
           prerelease: false
+
+      - name: Increment build number in VERSION
+        shell: bash
+        run: |
+          version="${{ steps.version.outputs.version }}"
+          major=$(echo "$version" | cut -d. -f1)
+          minor=$(echo "$version" | cut -d. -f2)
+          build=$(echo "$version" | cut -d. -f3)
+          next="${major}.${minor}.$((build + 1))"
+          printf '%s\n' "$next" > VERSION
+          git config user.name "Vibratron"
+          git config user.email "vibratron@flatline.local"
+          git add VERSION
+          git commit -m "Bump build to ${next} [skip ci]"
+          git push origin HEAD:master
