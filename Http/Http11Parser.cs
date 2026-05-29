@@ -37,13 +37,28 @@ namespace Flatline.Http
 
             ParseCookieHeader(request);
 
+            /* Reject Transfer-Encoding outright. We do not decode chunked
+             * bodies, and silently treating a chunked request as bodyless
+             * would leave the chunk data unread in the keep-alive stream,
+             * where it gets parsed as the next request (connection desync /
+             * request smuggling). */
+            string transferEncodingValue;
+            if (request.Headers.TryGetValue("Transfer-Encoding", out transferEncodingValue))
+            {
+                throw new BadRequestException("Transfer-Encoding is not supported.");
+            }
+
             int contentLength = 0;
             string contentLengthValue;
             if (request.Headers.TryGetValue("Content-Length", out contentLengthValue))
             {
-                if (!int.TryParse(contentLengthValue, out contentLength))
+                /* A present-but-unparseable, negative, or int-overflowing
+                 * Content-Length must be rejected, not defaulted to 0. If we
+                 * defaulted to 0 we would leave the declared body unread in
+                 * the stream and reinterpret it as the next request. */
+                if (!int.TryParse(contentLengthValue, out contentLength) || contentLength < 0)
                 {
-                    contentLength = 0;
+                    throw new BadRequestException("Invalid Content-Length header.");
                 }
             }
             if (contentLength > MaxBodyLength)
@@ -122,6 +137,18 @@ namespace Flatline.Http
             }
             string name = headerLine.Substring(0, colonIndex).Trim();
             string value = headerLine.Substring(colonIndex + 1).Trim();
+            string existingValue;
+            if (request.Headers.TryGetValue(name, out existingValue))
+            {
+                /* Two Content-Length headers with different values is a
+                 * classic request-smuggling primitive (front-end and
+                 * back-end disagree on body length). Reject rather than
+                 * letting the last value silently win. */
+                if (string.Equals(name, "Content-Length", StringComparison.OrdinalIgnoreCase) && existingValue != value)
+                {
+                    throw new BadRequestException("Conflicting Content-Length headers.");
+                }
+            }
             request.Headers[name] = value;
         }
 

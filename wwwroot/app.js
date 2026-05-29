@@ -19,6 +19,7 @@ const State = {
     browseSelectedIds: {},
     browseSearch: "",
     browseSearchTimer: null,
+    columnResize: null,
     metadata: {
         Statuses: {},
         Priorities: {},
@@ -1740,6 +1741,34 @@ function handleCancelBugDetailClick() {
     returnFromBugDetail();
 }
 
+/* Terminal status the Close button applies. Named here rather than inlined
+ * so the one place that triggers a close reads clearly; the value matches
+ * the backend eBugStatus name served in metadata. */
+const ClosedStatusValue = "Closed";
+
+async function handleCloseBugDetailClick() {
+    const bug = State.activeBug;
+    if (bug === null) {
+        return;
+    }
+    const confirmed = window.confirm("Close this bug? This sets its status to Closed.");
+    if (!confirmed) {
+        return;
+    }
+    const errorElement = document.getElementById("detailBugError");
+    errorElement.textContent = "";
+    const updatePayload = {
+        Status: ClosedStatusValue,
+        UpdateStatus: true
+    };
+    try {
+        await apiRequest("PUT", "/api/bugs/" + bug.Id, updatePayload);
+        await returnFromBugDetail();
+    } catch (apiError) {
+        errorElement.textContent = apiError.message;
+    }
+}
+
 function renderComments() {
     const commentsList = document.getElementById("commentsList");
     commentsList.innerHTML = "";
@@ -2065,6 +2094,193 @@ async function returnFromBugDetail() {
     }
     showView("homeView");
     await refreshHomeView();
+}
+
+const ColumnWidthStorageKey = "flatline-column-widths";
+const ColumnResizeMinWidth = 40;
+
+/* Adds drag-to-resize handles to every list-view table header. Each handle
+ * sits on a column's right edge and resizes that column and its right
+ * neighbour by equal-and-opposite amounts, so the table's total width stays
+ * fixed (no horizontal overflow). Widths persist per table in localStorage. */
+function setupResizableTables() {
+    const tables = document.querySelectorAll("table.bug-table");
+    const tableCount = tables.length;
+    for (let tableIndex = 0; tableIndex < tableCount; tableIndex++) {
+        setupResizableTable(tables[tableIndex]);
+    }
+}
+
+function setupResizableTable(table) {
+    const headerCells = table.querySelectorAll("thead th");
+    const cellCount = headerCells.length;
+    /* No handle on the last column: each handle drives the column to its
+     * left and the one to its right, and the last column has no right
+     * neighbour to borrow width from. */
+    for (let cellIndex = 0; cellIndex < cellCount - 1; cellIndex++) {
+        const headerCell = headerCells[cellIndex];
+        const resizer = document.createElement("span");
+        resizer.className = "column-resizer";
+        headerCell.appendChild(resizer);
+        resizer.addEventListener("mousedown", handleColumnResizeStart);
+        resizer.addEventListener("click", stopColumnResizerClick);
+    }
+    applyStoredColumnWidths(table);
+}
+
+function tableStorageKeyForTable(table) {
+    const tableBody = table.querySelector("tbody");
+    if (tableBody === null) {
+        return "";
+    }
+    return tableBody.id;
+}
+
+function stopColumnResizerClick(clickEvent) {
+    /* Keep a click on the handle from bubbling to a sortable header. */
+    clickEvent.stopPropagation();
+}
+
+function readStoredColumnWidths() {
+    try {
+        const raw = window.localStorage.getItem(ColumnWidthStorageKey);
+        if (!raw) {
+            return {};
+        }
+        const parsed = JSON.parse(raw);
+        if (parsed === null || typeof parsed !== "object") {
+            return {};
+        }
+        return parsed;
+    } catch (storageError) {
+        return {};
+    }
+}
+
+function applyStoredColumnWidths(table) {
+    const storageKey = tableStorageKeyForTable(table);
+    if (storageKey === "") {
+        return;
+    }
+    const storedWidths = readStoredColumnWidths()[storageKey];
+    if (!storedWidths) {
+        return;
+    }
+    const headerCells = table.querySelectorAll("thead th");
+    if (storedWidths.length !== headerCells.length) {
+        return;
+    }
+    const cellCount = headerCells.length;
+    /* Only restore pixel widths. This also discards any older stored values
+     * from a previous format so they don't get reapplied. */
+    for (let validateIndex = 0; validateIndex < cellCount; validateIndex++) {
+        const storedValue = storedWidths[validateIndex];
+        if (typeof storedValue !== "string" || !storedValue.endsWith("px")) {
+            return;
+        }
+    }
+    for (let cellIndex = 0; cellIndex < cellCount; cellIndex++) {
+        headerCells[cellIndex].style.width = storedWidths[cellIndex];
+    }
+    table.classList.add("layout-fixed");
+}
+
+function storeColumnWidths(table) {
+    const storageKey = tableStorageKeyForTable(table);
+    if (storageKey === "") {
+        return;
+    }
+    const headerCells = table.querySelectorAll("thead th");
+    const widths = [];
+    const cellCount = headerCells.length;
+    for (let cellIndex = 0; cellIndex < cellCount; cellIndex++) {
+        widths.push(headerCells[cellIndex].style.width);
+    }
+    const allWidths = readStoredColumnWidths();
+    allWidths[storageKey] = widths;
+    try {
+        window.localStorage.setItem(ColumnWidthStorageKey, JSON.stringify(allWidths));
+    } catch (storageError) {
+        /* Persisting widths is best-effort; ignore quota/availability errors. */
+    }
+}
+
+/* Pin every column to its current rendered pixel width and switch the table
+ * to fixed layout, so a subsequent drag adjusts only the two columns it
+ * touches instead of the browser reflowing everything. Pixels (not
+ * percentages) keep the math unambiguous under fixed layout. */
+function freezeTableColumns(table) {
+    if (table.classList.contains("layout-fixed")) {
+        return;
+    }
+    const headerCells = table.querySelectorAll("thead th");
+    const cellCount = headerCells.length;
+    /* Measure every column first, then apply. Setting a width while the table
+     * is still auto-layout reflows the remaining columns, so reading and
+     * writing in one pass would capture already-shifted widths. */
+    const measuredWidths = [];
+    for (let measureIndex = 0; measureIndex < cellCount; measureIndex++) {
+        measuredWidths.push(headerCells[measureIndex].offsetWidth);
+    }
+    for (let cellIndex = 0; cellIndex < cellCount; cellIndex++) {
+        headerCells[cellIndex].style.width = measuredWidths[cellIndex] + "px";
+    }
+    table.classList.add("layout-fixed");
+}
+
+function handleColumnResizeStart(mouseEvent) {
+    mouseEvent.preventDefault();
+    mouseEvent.stopPropagation();
+    const resizer = mouseEvent.currentTarget;
+    const leftCell = resizer.parentElement;
+    const rightCell = leftCell.nextElementSibling;
+    if (rightCell === null) {
+        return;
+    }
+    const table = leftCell.closest("table");
+    freezeTableColumns(table);
+    State.columnResize = {
+        table: table,
+        leftCell: leftCell,
+        rightCell: rightCell,
+        startX: mouseEvent.clientX,
+        startLeftWidth: leftCell.offsetWidth,
+        startRightWidth: rightCell.offsetWidth
+    };
+    document.addEventListener("mousemove", handleColumnResizeMove);
+    document.addEventListener("mouseup", handleColumnResizeEnd);
+    document.body.classList.add("column-resizing");
+}
+
+function handleColumnResizeMove(mouseEvent) {
+    const resize = State.columnResize;
+    if (resize === null) {
+        return;
+    }
+    const pairWidth = resize.startLeftWidth + resize.startRightWidth;
+    const delta = mouseEvent.clientX - resize.startX;
+    let newLeftWidth = resize.startLeftWidth + delta;
+    if (newLeftWidth < ColumnResizeMinWidth) {
+        newLeftWidth = ColumnResizeMinWidth;
+    }
+    if (newLeftWidth > pairWidth - ColumnResizeMinWidth) {
+        newLeftWidth = pairWidth - ColumnResizeMinWidth;
+    }
+    const newRightWidth = pairWidth - newLeftWidth;
+    resize.leftCell.style.width = newLeftWidth + "px";
+    resize.rightCell.style.width = newRightWidth + "px";
+}
+
+function handleColumnResizeEnd() {
+    const resize = State.columnResize;
+    if (resize === null) {
+        return;
+    }
+    document.removeEventListener("mousemove", handleColumnResizeMove);
+    document.removeEventListener("mouseup", handleColumnResizeEnd);
+    document.body.classList.remove("column-resizing");
+    storeColumnWidths(resize.table);
+    State.columnResize = null;
 }
 
 function setActiveSidebarItem(itemId) {
@@ -2876,6 +3092,7 @@ function attachEventHandlers() {
     document.getElementById("bugProject").addEventListener("change", handleBugProjectChange);
     document.getElementById("detailBugProject").addEventListener("change", handleDetailBugProjectChange);
     document.getElementById("saveBugDetailButton").addEventListener("click", handleSaveBugDetailClick);
+    document.getElementById("closeBugDetailButton").addEventListener("click", handleCloseBugDetailClick);
     document.getElementById("cancelBugDetailButton").addEventListener("click", handleCancelBugDetailClick);
     document.getElementById("detailBugDescriptionPreviewToggle").addEventListener("click", handleDescriptionPreviewToggleClick);
 
@@ -2905,6 +3122,8 @@ function attachEventHandlers() {
     document.getElementById("newUserForm").addEventListener("submit", handleNewUserSubmit);
     document.getElementById("editUserForm").addEventListener("submit", handleEditUserSubmit);
     document.getElementById("cancelEditUserButton").addEventListener("click", handleCancelEditUserClick);
+
+    setupResizableTables();
 }
 
 document.addEventListener("DOMContentLoaded", function onReady() {

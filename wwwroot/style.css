@@ -648,6 +648,32 @@ table.bug-table td:first-child {
     color: var(--color-text);
 }
 
+/* Resizable columns: once a table's columns have been pinned (by the first
+ * drag, or restored from storage) it switches to fixed layout so each drag
+ * only resizes the two columns it touches. */
+table.bug-table.layout-fixed {
+    table-layout: fixed;
+}
+
+table.bug-table th {
+    position: relative;
+}
+
+.column-resizer {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 6px;
+    height: 100%;
+    cursor: col-resize;
+    user-select: none;
+}
+
+body.column-resizing {
+    cursor: col-resize;
+    user-select: none;
+}
+
 .empty-message {
     text-align: center;
     padding: var(--space-5);

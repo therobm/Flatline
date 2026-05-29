@@ -34,6 +34,11 @@ All endpoints require the `X-API-Key` header. Endpoints under
 session-cookie endpoints under `/api/...` (used by the web UI) still
 require a logged-in user.
 
+Any endpoint that accepts a JSON request body returns
+`400 {"error":"Invalid JSON body."}` when the body is present but is not
+valid JSON. A missing or empty body instead returns the endpoint-specific
+"is required" error noted in that endpoint's error table below.
+
 | Method | Path                                | Purpose                              |
 |--------|-------------------------------------|--------------------------------------|
 | GET    | `/api/external/projects`            | List projects (id, name, etc.).      |
@@ -128,7 +133,8 @@ does not accept a status field.
 
 | Status | Body                                                       | Cause                                  |
 |--------|------------------------------------------------------------|----------------------------------------|
-| 400    | `{"error":"Body is required."}`                            | Empty/invalid JSON body.               |
+| 400    | `{"error":"Body is required."}`                            | Missing or empty body.                 |
+| 400    | `{"error":"Invalid JSON body."}`                           | Body is present but not valid JSON.    |
 | 400    | `{"error":"Title is required."}`                           | Missing/blank `Title`.                 |
 | 400    | `{"error":"Project is required."}`                         | `ProjectId` missing or `<= 0`.         |
 | 400    | `{"error":"Project not found."}`                           | `ProjectId` does not exist.            |
@@ -241,7 +247,8 @@ create/get responses.
 
 | Status | Body                                                                 | Cause                                     |
 |--------|----------------------------------------------------------------------|-------------------------------------------|
-| 400    | `{"error":"Body is required."}`                                      | Empty/invalid JSON body.                  |
+| 400    | `{"error":"Body is required."}`                                      | Missing or empty body.                    |
+| 400    | `{"error":"Invalid JSON body."}`                                     | Body is present but not valid JSON.       |
 | 400    | `{"error":"Nothing to update. Provide Status, AssignedTo, or both."}`| Body omits both fields.                   |
 | 400    | `{"error":"Invalid status."}`                                        | `Status` is not one of the enum values.   |
 | 400    | `{"error":"AssignedTo user not found."}`                             | `AssignedTo` > 0 but no such user id.     |

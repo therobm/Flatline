@@ -5,6 +5,7 @@ using System.Net.Security;
 using System.Net.Sockets;
 using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
+using System.Text.Json;
 using System.Threading;
 using Flatline.Logging;
 
@@ -294,6 +295,29 @@ namespace Flatline.Http
                 Log.Info(scheme + " " + method + " " + path + " " + statusCode + " " + elapsed.TotalMilliseconds.ToString("F1") + "ms");
 
                 return !clientWantsClose;
+            }
+            catch (BadRequestException badRequestException)
+            {
+                /* Malformed request at the protocol or body layer. Respond
+                 * 400 and close the connection — when the failure was bad
+                 * body framing the stream position is no longer trustworthy
+                 * for a following keep-alive request. */
+                Log.Warning("Bad request (" + method + " " + path + "): " + badRequestException.Message);
+                try
+                {
+                    FlatlineHttpResponse badResponse = new FlatlineHttpResponse();
+                    badResponse.StatusCode = 400;
+                    badResponse.ContentType = "application/json; charset=utf-8";
+                    object errorBody = new { error = badRequestException.Message };
+                    badResponse.BodyBytes = JsonSerializer.SerializeToUtf8Bytes(errorBody, errorBody.GetType(), JsonOptions.Default);
+                    badResponse.KeepAlive = false;
+                    badResponse.WriteTo(networkStream);
+                }
+                catch (Exception writeException)
+                {
+                    Log.Exception(writeException, "Failed to write 400 response");
+                }
+                return false;
             }
             catch (Exception requestException)
             {
