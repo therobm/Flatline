@@ -1,22 +1,15 @@
-name: Build and Release
+name: Dev Build
 
-# Unified build strategy (shared with Pulse): a merge to master builds a
-# self-contained win-x64 single-file exe, versions it Major.Minor.Build, and
-# publishes a GitHub Release. Major.Minor live in the VERSION file (edited by
-# hand); Build is derived from git history by .github/version.sh.
+# Manual, on-demand build of a test exe off any branch. Produces the same
+# self-contained win-x64 single-file exe as the release workflow but uploads
+# it as a build artifact instead of cutting a GitHub Release. The version is
+# the same Major.Minor.Build with a -dev suffix.
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - master
 
 permissions:
-  contents: write
-
-concurrency:
-  group: build-release-${{ github.ref }}
-  cancel-in-progress: false
+  contents: read
 
 jobs:
   build:
@@ -26,8 +19,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          # Full history so the build number (commits since the VERSION bump)
-          # can be computed.
           fetch-depth: 0
 
       - name: Setup .NET 8
@@ -39,7 +30,7 @@ jobs:
         id: version
         shell: bash
         run: |
-          version=$(bash .github/version.sh)
+          version="$(bash .github/version.sh)-dev"
           echo "version=${version}" >> "$GITHUB_OUTPUT"
           echo "Version: ${version}"
 
@@ -55,18 +46,16 @@ jobs:
             -p:Version="${{ steps.version.outputs.version }}" \
             -o publish
 
-      - name: Stage release artifact
+      - name: Stage artifact
         shell: bash
         run: |
           mkdir -p artifacts
           mv publish/Flatline.exe "artifacts/Flatline-${{ steps.version.outputs.version }}-win-x64.exe"
 
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
         with:
-          tag_name: v${{ steps.version.outputs.version }}
-          name: v${{ steps.version.outputs.version }}
-          files: artifacts/Flatline-${{ steps.version.outputs.version }}-win-x64.exe
-          generate_release_notes: true
-          draft: false
-          prerelease: false
+          name: Flatline-dev-${{ github.sha }}
+          path: artifacts/Flatline-${{ steps.version.outputs.version }}-win-x64.exe
+          retention-days: 14
+          if-no-files-found: error
