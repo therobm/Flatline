@@ -368,10 +368,15 @@ namespace Flatline.Routes
 
                 string sortColumn = "b.created_at";
                 string defaultSortDirection = "DESC";
+                /* The "#" column shows the bug reference (prefix + per-project
+                 * number, e.g. FLT10), so it sorts by prefix then by the
+                 * NUMERIC project_bug_number — never by the reference string,
+                 * which would order FLT10 before FLT2. */
+                bool sortByReference = false;
                 if (sort == "id")
                 {
-                    sortColumn = "b.id";
-                    defaultSortDirection = "DESC";
+                    sortByReference = true;
+                    defaultSortDirection = "ASC";
                 }
                 else if (sort == "title")
                 {
@@ -410,9 +415,19 @@ namespace Flatline.Routes
                     effectiveDirection = normalizedDirection;
                 }
                 sqlBuilder.Append(" ORDER BY ");
-                sqlBuilder.Append(sortColumn);
-                sqlBuilder.Append(" ");
-                sqlBuilder.Append(effectiveDirection);
+                if (sortByReference)
+                {
+                    sqlBuilder.Append("p.prefix COLLATE NOCASE ");
+                    sqlBuilder.Append(effectiveDirection);
+                    sqlBuilder.Append(", b.project_bug_number ");
+                    sqlBuilder.Append(effectiveDirection);
+                }
+                else
+                {
+                    sqlBuilder.Append(sortColumn);
+                    sqlBuilder.Append(" ");
+                    sqlBuilder.Append(effectiveDirection);
+                }
                 sqlBuilder.Append(", b.id DESC");
                 sqlBuilder.Append(" LIMIT $row_limit OFFSET $row_offset");
                 selectCommand.Parameters.AddWithValue("$row_limit", parsedLimit);
