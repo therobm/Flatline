@@ -1081,7 +1081,7 @@ const TableSorts = {};
  * server-side defaults in BugRoutes.cs so the indicator matches what the
  * API actually returned. */
 function sortDefaultDirection(field) {
-    if (field === "id" || field === "priority" || field === "updated") {
+    if (field === "priority" || field === "updated") {
         return "desc";
     }
     return "asc";
