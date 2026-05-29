@@ -236,6 +236,44 @@ namespace Flatline.Database
             ";
             migrationList.Add(version3);
 
+            // v4: project bug-number prefixes. Each project gets a short prefix
+            // and each bug a per-project sequence number, so a bug is referenced
+            // as e.g. FLT1 (the first Flatline bug) instead of by its global row
+            // id. The global id stays the internal key; project_bug_number is the
+            // per-project count, backfilled in id order (oldest bug in a project
+            // is number 1). Known projects are seeded with the agreed prefixes;
+            // any other existing project gets a placeholder derived from its id
+            // that an admin can edit in Settings.
+            MigrationStep version4 = new MigrationStep();
+            version4.Version = 4;
+            version4.Sql = @"
+                ALTER TABLE projects ADD COLUMN prefix TEXT NOT NULL DEFAULT '';
+
+                UPDATE projects SET prefix = 'BGT' WHERE name = 'Burngate';
+                UPDATE projects SET prefix = 'FLT' WHERE name = 'Flatline';
+                UPDATE projects SET prefix = 'GAD' WHERE name = 'Gadget';
+                UPDATE projects SET prefix = 'GAC' WHERE name = 'GadgetClient';
+                UPDATE projects SET prefix = 'KFE' WHERE name = 'KFEngine';
+                UPDATE projects SET prefix = 'KNI' WHERE name = 'Knit';
+                UPDATE projects SET prefix = 'PLS' WHERE name = 'Pulse';
+                UPDATE projects SET prefix = 'TMP' WHERE name = 'Thump';
+
+                UPDATE projects SET prefix = substr('P' || printf('%02d', id), -3, 3) WHERE prefix = '';
+
+                CREATE UNIQUE INDEX idx_projects_prefix ON projects(prefix);
+
+                ALTER TABLE bugs ADD COLUMN project_bug_number INTEGER NOT NULL DEFAULT 0;
+
+                UPDATE bugs SET project_bug_number = (
+                    SELECT seq FROM (
+                        SELECT id AS numbered_id, ROW_NUMBER() OVER (PARTITION BY project_id ORDER BY id) AS seq FROM bugs
+                    ) AS numbered WHERE numbered.numbered_id = bugs.id
+                );
+
+                CREATE UNIQUE INDEX idx_bugs_project_bug_number ON bugs(project_id, project_bug_number);
+            ";
+            migrationList.Add(version4);
+
             return migrationList;
         }
     }

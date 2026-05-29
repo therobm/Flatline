@@ -13,6 +13,8 @@ namespace Flatline.Routes
         public string Title = "";
         public eBugStatus Status;
         public eBugPriority Priority;
+        public string ProjectPrefix = "";
+        public long ProjectBugNumber;
     }
 
     public class RelatedBugCreateRequest
@@ -60,9 +62,10 @@ namespace Flatline.Routes
             try
             {
                 SqliteCommand selectCommand = connection.CreateCommand();
-                selectCommand.CommandText = "SELECT b.id, b.title, b.status, b.priority "
+                selectCommand.CommandText = "SELECT b.id, b.title, b.status, b.priority, p.prefix, b.project_bug_number "
                     + "FROM related_bugs r "
                     + "INNER JOIN bugs b ON b.id = r.related_bug_id "
+                    + "INNER JOIN projects p ON p.id = b.project_id "
                     + "WHERE r.bug_id = $bug_id "
                     + "ORDER BY b.id ASC;";
                 selectCommand.Parameters.AddWithValue("$bug_id", bugId);
@@ -79,6 +82,8 @@ namespace Flatline.Routes
                     summary.Title = reader.GetString(1);
                     summary.Status = (eBugStatus)reader.GetInt32(2);
                     summary.Priority = (eBugPriority)reader.GetInt32(3);
+                    summary.ProjectPrefix = reader.GetString(4);
+                    summary.ProjectBugNumber = reader.GetInt64(5);
                     relatedList.Add(summary);
                 }
                 reader.Close();
@@ -256,7 +261,8 @@ namespace Flatline.Routes
         private static RelatedBugSummary LoadSummary(SqliteConnection connection, long bugId)
         {
             SqliteCommand summaryCommand = connection.CreateCommand();
-            summaryCommand.CommandText = "SELECT id, title, status, priority FROM bugs WHERE id = $id;";
+            summaryCommand.CommandText = "SELECT b.id, b.title, b.status, b.priority, p.prefix, b.project_bug_number "
+                + "FROM bugs b INNER JOIN projects p ON p.id = b.project_id WHERE b.id = $id;";
             summaryCommand.Parameters.AddWithValue("$id", bugId);
             SqliteDataReader summaryReader = summaryCommand.ExecuteReader();
             summaryReader.Read();
@@ -265,6 +271,8 @@ namespace Flatline.Routes
             summary.Title = summaryReader.GetString(1);
             summary.Status = (eBugStatus)summaryReader.GetInt32(2);
             summary.Priority = (eBugPriority)summaryReader.GetInt32(3);
+            summary.ProjectPrefix = summaryReader.GetString(4);
+            summary.ProjectBugNumber = summaryReader.GetInt64(5);
             summaryReader.Close();
             return summary;
         }

@@ -10,11 +10,13 @@ namespace Flatline.Routes
     public class ProjectCreateRequest
     {
         public string Name = "";
+        public string Prefix = "";
     }
 
     public class ProjectUpdateRequest
     {
         public string Name = "";
+        public string Prefix = "";
     }
 
     public static class ProjectRoutes
@@ -37,7 +39,7 @@ namespace Flatline.Routes
             try
             {
                 SqliteCommand selectCommand = connection.CreateCommand();
-                selectCommand.CommandText = "SELECT p.id, p.name, p.created_at, "
+                selectCommand.CommandText = "SELECT p.id, p.name, p.prefix, p.created_at, "
                     + "(SELECT COUNT(*) FROM versions v WHERE v.project_id = p.id) AS version_count "
                     + "FROM projects p ORDER BY p.name ASC;";
                 SqliteDataReader reader = selectCommand.ExecuteReader();
@@ -51,8 +53,9 @@ namespace Flatline.Routes
                     Project project = new Project();
                     project.Id = reader.GetInt64(0);
                     project.Name = reader.GetString(1);
-                    project.CreatedAt = reader.GetString(2);
-                    project.VersionCount = reader.GetInt32(3);
+                    project.Prefix = reader.GetString(2);
+                    project.CreatedAt = reader.GetString(3);
+                    project.VersionCount = reader.GetInt32(4);
                     projectList.Add(project);
                 }
                 reader.Close();
@@ -85,6 +88,12 @@ namespace Flatline.Routes
                 HttpResponseWriter.WriteJson(context, 400, new { error = "Name is required." });
                 return;
             }
+            string normalizedPrefix = NormalizeProjectPrefix(createRequest.Prefix);
+            if (normalizedPrefix.Length == 0)
+            {
+                HttpResponseWriter.WriteJson(context, 400, new { error = "Prefix must be exactly 3 letters." });
+                return;
+            }
 
             SqliteConnection connection = SqliteConnectionFactory.OpenConnection();
             try
@@ -99,11 +108,22 @@ namespace Flatline.Routes
                     return;
                 }
 
+                SqliteCommand prefixDuplicateCommand = connection.CreateCommand();
+                prefixDuplicateCommand.CommandText = "SELECT id FROM projects WHERE prefix = $prefix;";
+                prefixDuplicateCommand.Parameters.AddWithValue("$prefix", normalizedPrefix);
+                object prefixDuplicateResult = prefixDuplicateCommand.ExecuteScalar();
+                if (prefixDuplicateResult != null)
+                {
+                    HttpResponseWriter.WriteJson(context, 409, new { error = "Project prefix already exists." });
+                    return;
+                }
+
                 string nowIso = DateTime.UtcNow.ToString("o");
                 SqliteCommand insertCommand = connection.CreateCommand();
-                insertCommand.CommandText = "INSERT INTO projects (name, created_at) VALUES ($name, $created_at); "
+                insertCommand.CommandText = "INSERT INTO projects (name, prefix, created_at) VALUES ($name, $prefix, $created_at); "
                     + "SELECT last_insert_rowid();";
                 insertCommand.Parameters.AddWithValue("$name", createRequest.Name);
+                insertCommand.Parameters.AddWithValue("$prefix", normalizedPrefix);
                 insertCommand.Parameters.AddWithValue("$created_at", nowIso);
                 object scalarResult = insertCommand.ExecuteScalar();
                 long newProjectId = Convert.ToInt64(scalarResult);
@@ -111,6 +131,7 @@ namespace Flatline.Routes
                 Project project = new Project();
                 project.Id = newProjectId;
                 project.Name = createRequest.Name;
+                project.Prefix = normalizedPrefix;
                 project.CreatedAt = nowIso;
                 project.VersionCount = 0;
                 HttpResponseWriter.WriteJson(context, 200, project);
@@ -141,6 +162,12 @@ namespace Flatline.Routes
                 HttpResponseWriter.WriteJson(context, 400, new { error = "Name is required." });
                 return;
             }
+            string normalizedPrefix = NormalizeProjectPrefix(updateRequest.Prefix);
+            if (normalizedPrefix.Length == 0)
+            {
+                HttpResponseWriter.WriteJson(context, 400, new { error = "Prefix must be exactly 3 letters." });
+                return;
+            }
 
             SqliteConnection connection = SqliteConnectionFactory.OpenConnection();
             try
@@ -166,14 +193,26 @@ namespace Flatline.Routes
                     return;
                 }
 
+                SqliteCommand prefixDuplicateCommand = connection.CreateCommand();
+                prefixDuplicateCommand.CommandText = "SELECT id FROM projects WHERE prefix = $prefix AND id != $id;";
+                prefixDuplicateCommand.Parameters.AddWithValue("$prefix", normalizedPrefix);
+                prefixDuplicateCommand.Parameters.AddWithValue("$id", id);
+                object prefixDuplicateResult = prefixDuplicateCommand.ExecuteScalar();
+                if (prefixDuplicateResult != null)
+                {
+                    HttpResponseWriter.WriteJson(context, 409, new { error = "Project prefix already exists." });
+                    return;
+                }
+
                 SqliteCommand updateCommand = connection.CreateCommand();
-                updateCommand.CommandText = "UPDATE projects SET name = $name WHERE id = $id;";
+                updateCommand.CommandText = "UPDATE projects SET name = $name, prefix = $prefix WHERE id = $id;";
                 updateCommand.Parameters.AddWithValue("$name", updateRequest.Name);
+                updateCommand.Parameters.AddWithValue("$prefix", normalizedPrefix);
                 updateCommand.Parameters.AddWithValue("$id", id);
                 updateCommand.ExecuteNonQuery();
 
                 SqliteCommand selectCommand = connection.CreateCommand();
-                selectCommand.CommandText = "SELECT p.id, p.name, p.created_at, "
+                selectCommand.CommandText = "SELECT p.id, p.name, p.prefix, p.created_at, "
                     + "(SELECT COUNT(*) FROM versions v WHERE v.project_id = p.id) AS version_count "
                     + "FROM projects p WHERE p.id = $id;";
                 selectCommand.Parameters.AddWithValue("$id", id);
@@ -182,8 +221,9 @@ namespace Flatline.Routes
                 Project project = new Project();
                 project.Id = reader.GetInt64(0);
                 project.Name = reader.GetString(1);
-                project.CreatedAt = reader.GetString(2);
-                project.VersionCount = reader.GetInt32(3);
+                project.Prefix = reader.GetString(2);
+                project.CreatedAt = reader.GetString(3);
+                project.VersionCount = reader.GetInt32(4);
                 reader.Close();
                 HttpResponseWriter.WriteJson(context, 200, project);
             }
@@ -241,6 +281,33 @@ namespace Flatline.Routes
             }
 
             HttpResponseWriter.WriteJson(context, 200, new { ok = true });
+        }
+
+        /* Returns the uppercased prefix when the input is exactly three ASCII
+         * letters, or "" when it is not valid. Prefixes are stored uppercase so
+         * equality comparisons (uniqueness checks) are effectively
+         * case-insensitive. */
+        private static string NormalizeProjectPrefix(string rawPrefix)
+        {
+            if (rawPrefix == null)
+            {
+                return "";
+            }
+            string trimmedPrefix = rawPrefix.Trim();
+            if (trimmedPrefix.Length != 3)
+            {
+                return "";
+            }
+            for (int characterIndex = 0; characterIndex < 3; characterIndex++)
+            {
+                char currentCharacter = trimmedPrefix[characterIndex];
+                bool isLetter = (currentCharacter >= 'A' && currentCharacter <= 'Z') || (currentCharacter >= 'a' && currentCharacter <= 'z');
+                if (!isLetter)
+                {
+                    return "";
+                }
+            }
+            return trimmedPrefix.ToUpperInvariant();
         }
     }
 }

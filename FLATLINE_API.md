@@ -114,6 +114,9 @@ does not accept a status field.
 {
   "Id": 142,
   "ProjectId": 3,
+  "ProjectName": "Acme",
+  "ProjectPrefix": "ACM",
+  "ProjectBugNumber": 17,
   "Title": "Null reference in InvoiceRenderer.Format",
   "Description": "Stack: ...",
   "Status": "Open",
@@ -129,7 +132,12 @@ does not accept a status field.
 }
 ```
 
-### Error responses
+`ProjectBugNumber` is the bug's per-project sequence number (each project
+numbers its own bugs from 1), and `ProjectPrefix` is the owning project's
+3-letter prefix. Together they form the human-facing reference shown in the
+UI, e.g. `ACM17`. `Id` remains the globally-unique row id used in all
+endpoint paths (`/api/external/bugs/{id}`); the reference is for display, not
+for lookups. These fields appear on every bug object the API returns.
 
 | Status | Body                                                       | Cause                                  |
 |--------|------------------------------------------------------------|----------------------------------------|
@@ -664,11 +672,16 @@ resolve it to the numeric `ProjectId` that the bug endpoints require.
   {
     "Id": 1,
     "Name": "Flatline",
+    "Prefix": "FLT",
     "CreatedAt": "2026-05-23T08:00:00.0000000Z",
     "VersionCount": 0
   }
 ]
 ```
+
+`Prefix` is the project's 3-letter bug-reference prefix (e.g. `FLT`), unique
+across projects. It is combined with each bug's `ProjectBugNumber` to form the
+display reference like `FLT17`.
 
 ### Errors
 

@@ -620,8 +620,13 @@ namespace Flatline.Routes
 
                 string nowIso = DateTime.UtcNow.ToString("o");
                 SqliteCommand insertCommand = connection.CreateCommand();
-                insertCommand.CommandText = "INSERT INTO bugs (project_id, title, description, status, priority, created_by, assigned_to, found_in_version_id, fixed_in_version_id, created_at, updated_at) "
-                    + "VALUES ($project_id, $title, $description, $status, $priority, $created_by, $assigned_to, $found_in_version_id, $fixed_in_version_id, $created_at, $updated_at); "
+                /* project_bug_number is the per-project sequence (FLT1, FLT2, ...).
+                 * Computed inline as MAX+1 for this project so the allocation is
+                 * part of the same INSERT statement; the UNIQUE(project_id,
+                 * project_bug_number) index is the backstop against any race. */
+                insertCommand.CommandText = "INSERT INTO bugs (project_id, title, description, status, priority, created_by, assigned_to, found_in_version_id, fixed_in_version_id, created_at, updated_at, project_bug_number) "
+                    + "VALUES ($project_id, $title, $description, $status, $priority, $created_by, $assigned_to, $found_in_version_id, $fixed_in_version_id, $created_at, $updated_at, "
+                    + "(SELECT COALESCE(MAX(project_bug_number), 0) + 1 FROM bugs WHERE project_id = $project_id)); "
                     + "SELECT last_insert_rowid();";
                 insertCommand.Parameters.AddWithValue("$project_id", createRequest.ProjectId);
                 insertCommand.Parameters.AddWithValue("$title", createRequest.Title);
@@ -836,7 +841,8 @@ namespace Flatline.Routes
             sqlBuilder.Append("b.created_at, b.updated_at, ");
             sqlBuilder.Append("creator.username, creator.display_name, ");
             sqlBuilder.Append("assignee.username, assignee.display_name, ");
-            sqlBuilder.Append("found_v.name, fixed_v.name ");
+            sqlBuilder.Append("found_v.name, fixed_v.name, ");
+            sqlBuilder.Append("b.project_bug_number, p.prefix ");
             sqlBuilder.Append("FROM bugs b ");
             sqlBuilder.Append("INNER JOIN projects p ON p.id = b.project_id ");
             sqlBuilder.Append("INNER JOIN users creator ON creator.id = b.created_by ");
@@ -944,6 +950,8 @@ namespace Flatline.Routes
             {
                 bug.FixedInVersionName = reader.GetString(18);
             }
+            bug.ProjectBugNumber = reader.GetInt64(19);
+            bug.ProjectPrefix = reader.GetString(20);
             return bug;
         }
     }

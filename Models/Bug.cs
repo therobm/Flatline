@@ -5,6 +5,8 @@ namespace Flatline.Models
         public long Id;
         public long ProjectId;
         public string ProjectName = "";
+        public string ProjectPrefix = "";
+        public long ProjectBugNumber;
         public string Title = "";
         public string Description = "";
         public eBugStatus Status;
