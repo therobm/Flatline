@@ -3,6 +3,10 @@
 ###############################################################################
 * text=auto
 
+# Shell scripts must stay LF so they run under bash on the CI runners
+# (a CRLF script breaks with a literal carriage return error).
+*.sh text eol=lf
+
 ###############################################################################
 # Set default behavior for command prompt diff.
 #
