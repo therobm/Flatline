@@ -22,7 +22,17 @@ namespace Flatline.Http
             {
                 return default(T);
             }
-            return JsonSerializer.Deserialize<T>(body, JsonOptions.Default);
+            /* A malformed body is a client error: surface it as a 400 rather
+             * than letting the JsonException bubble up as an unhandled 500
+             * (which also logs a full stack trace for a routine bad request). */
+            try
+            {
+                return JsonSerializer.Deserialize<T>(body, JsonOptions.Default);
+            }
+            catch (JsonException)
+            {
+                throw new BadRequestException("Invalid JSON body.");
+            }
         }
 
         public static string GetCookieValue(FlatlineHttpContext context, string name)

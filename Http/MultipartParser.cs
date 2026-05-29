@@ -107,11 +107,21 @@ namespace Flatline.Http
                     break;
                 }
                 int bodyEnd = nextDelimiter;
-                if (bodyEnd >= 2 && body[bodyEnd - 2] == (byte)'\r' && body[bodyEnd - 1] == (byte)'\n')
+                /* Strip the CRLF that separates the body from the delimiter,
+                 * but only when those two bytes lie within this part's body
+                 * (bodyEnd - 2 >= cursor). Without that bound, a part whose
+                 * delimiter immediately follows the CRLFCRLF header
+                 * terminator would strip the terminator's own CRLF and drive
+                 * partBodyLength negative, throwing on new byte[negative]. */
+                if (bodyEnd - 2 >= cursor && body[bodyEnd - 2] == (byte)'\r' && body[bodyEnd - 1] == (byte)'\n')
                 {
                     bodyEnd -= 2;
                 }
                 int partBodyLength = bodyEnd - cursor;
+                if (partBodyLength < 0)
+                {
+                    partBodyLength = 0;
+                }
 
                 MultipartFilePart filePart = new MultipartFilePart();
                 if (TryParseFileHeaders(headerBlock, filePart))

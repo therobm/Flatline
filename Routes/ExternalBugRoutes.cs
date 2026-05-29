@@ -322,7 +322,10 @@ namespace Flatline.Routes
             eBugStatus parsedStatus = eBugStatus.Open;
             if (hasStatusChange)
             {
-                if (!Enum.TryParse<eBugStatus>(updateRequest.Status, false, out parsedStatus))
+                /* Enum.TryParse returns true for any numeric string (e.g.
+                 * "999"), so an Enum.IsDefined check is required to reject
+                 * values outside the defined status set before persisting. */
+                if (!Enum.TryParse<eBugStatus>(updateRequest.Status, false, out parsedStatus) || !Enum.IsDefined(typeof(eBugStatus), parsedStatus))
                 {
                     HttpResponseWriter.WriteJson(context, 400, new { error = "Invalid status." });
                     return;
